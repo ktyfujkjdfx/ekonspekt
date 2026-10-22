@@ -1,0 +1,46 @@
+# Релиз по тегу v* (например, v1.0.0): полная проверка, архивы, контрольные суммы, аттестация происхождения
+# и черновик GitHub Release с файлами. Черновик публикуете вы — после проверки и (по желанию) добавления .xpi.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # создать черновик релиза
+      id-token: write # аттестация происхождения сборки
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Версия в package.json совпадает с тегом
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      - name: Проверка, архивы, проверка архивов
+        run: npm run release
+      - name: Контрольные суммы
+        run: cd release && sha256sum *.zip > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Аттестация происхождения (кто и из какого коммита собрал)
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.zip
+      - name: Черновик GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.zip release/SHA256SUMS.txt \
+            --draft --verify-tag \
+            --title "еКонспект ${GITHUB_REF_NAME#v}" \
+            --notes "Установка — INSTALL.md. Chrome, Яндекс, Edge, Opera: ekonspekt-chrome-*.zip. Firefox: подписанный .xpi (добавляется вручную после подписи на AMO) или ekonspekt-firefox-*.zip для временной установки. Проверка подлинности: SHA256SUMS.txt и «gh attestation verify <файл> -R ${{ github.repository }}»."

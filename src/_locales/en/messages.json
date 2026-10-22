@@ -1,0 +1,8 @@
+{
+  "extName": { "message": "eKonspekt — quiz questions in one file", "description": "Store and extensions page name (≤ 45 chars)" },
+  "extShortName": { "message": "eKonspekt", "description": "Short name (toolbar tooltip)" },
+  "extDescription": {
+    "message": "Save e-course quiz questions to one tidy file in a click — for revision and exam prep, ready for AI assistants.",
+    "description": "Store description (≤ 132 chars)"
+  }
+}

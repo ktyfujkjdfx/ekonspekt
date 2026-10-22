@@ -1,0 +1,42 @@
+name: Ошибка
+description: Что-то работает не так, как ожидалось
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **Не прикладывайте личные данные**: скриншоты с ФИО, сохранённые страницы курсов (в них ФИО и ключ сессии), номера попыток. Нужна страница — отправьте её письмом через «Поддержку» в окне расширения.
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось
+      placeholder: Нажимаю «Скачать TXT» на просмотре результатов — файл не скачивается, пишет …
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Как повторить
+      placeholder: |
+        1. Открыть просмотр результатов теста из 3 страниц
+        2. Нажать значок расширения → «Скачать TXT»
+    validations:
+      required: true
+  - type: input
+    id: expected
+    attributes:
+      label: Что ожидали
+  - type: dropdown
+    id: page
+    attributes:
+      label: Где
+      options: [Тест — попытка, Тест — просмотр результатов, Окно расширения, Другое]
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Версия расширения и браузер
+      placeholder: еКонспект 1.0.0, Chrome 141 / Firefox 142 / Яндекс.Браузер 25
+    validations:
+      required: true

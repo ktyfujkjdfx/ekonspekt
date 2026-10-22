@@ -1,0 +1,46 @@
+name: Не работает на моём тесте
+description: Вопрос распознаётся неправильно, чего-то не хватает в файле
+labels: [parser]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ⚠️ **НЕ прикладывайте сохранённую страницу и скриншоты с ФИО сюда** — issue публичный. Опишите словами и приложите обезличенный фрагмент выгрузки. Страницу целиком отправьте письмом через «Поддержку» в окне расширения: мы её обезличим.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Тип вопроса (как он выглядит)
+      options:
+        [
+          Один вариант,
+          Несколько вариантов,
+          Соответствие,
+          Пропуски в тексте,
+          Перетаскивание,
+          Свой ответ / число,
+          Эссе,
+          Задание на картинке,
+          С аудио / видео,
+          Не знаю,
+        ]
+    validations:
+      required: true
+  - type: textarea
+    id: got
+    attributes:
+      label: Что получилось в файле (фрагмент)
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: want
+    attributes:
+      label: Что должно быть
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Версия расширения и браузер
+    validations:
+      required: true

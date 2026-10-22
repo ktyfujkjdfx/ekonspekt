@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Уязвимость безопасности
+    url: https://github.com/ktyfujkjdfx/ekonspekt/security/advisories/new
+    about: Сообщите приватно — не открывайте публичный issue.
+  - name: Написать разработчику
+    url: mailto:achiimindkit@gmail.com
+    about: Если не хотите публиковать подробности (страницы с ФИО отправляйте только так).

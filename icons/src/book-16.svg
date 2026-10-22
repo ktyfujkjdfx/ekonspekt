@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">
+  <!-- «Книга» для 16 px: меньше деталей — страницы, одна строка, галочка. -->
+  <path data-part="page" d="M8 4.1C6.8 3.2 5 2.9 2.2 3v9.2c2.8-.1 4.6.2 5.8 1.1"/>
+  <path data-part="page" d="M8 4.1c1.2-.9 3-1.2 5.8-1.1v9.2c-2.8-.1-4.6.2-5.8 1.1"/>
+  <path data-part="page" d="M8 4.1v9.2"/>
+  <path data-part="line" d="M4.3 6.6h1.9"/>
+  <path data-part="check" d="M9.7 7.9l1.1 1.1 1.9-2.2"/>
+</svg>

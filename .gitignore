@@ -1,0 +1,45 @@
+# Зависимости и результаты сборки
+node_modules/
+dist/
+release/
+*.zip
+*.xpi
+*.crx
+*.pem
+*.tsbuildinfo
+
+# Личные данные: сохранённые страницы курсов (ФИО, sesskey), выгрузки, черновые скриншоты — НЕ коммитить
+_files/
+new LECTURES/
+proverka/
+*.mhtml
+*.htm
+store/raw/
+research_notes/
+
+# Чужая иконка-образец (лицензия Flaticon) — только для справки, в репозиторий не идёт
+icons/1828755.png
+
+# Окружение, логи, временное
+.env
+.env.*
+*.log
+npm-debug.log*
+.cache/
+tmp/
+coverage/
+
+# Редакторы и ОС
+.vscode/
+.idea/
+.VSCodeCounter/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Личные признаки для scripts/verify-release.mjs
+scripts/personal-markers.local.txt
+
+# Выгрузки для ручной проверки — личное
+delete after tests/

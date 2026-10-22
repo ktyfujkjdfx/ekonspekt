@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width">
+  <title>еКонспект</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header class="top rise" style="--i:0">
+    <span class="glyph" aria-hidden="true"></span>
+    <span class="brand">еКонспект</span>
+    <button id="supportOpen" class="pill" type="button" aria-controls="support" aria-expanded="false">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H7l-3 2.5v-2.5H3a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1Z"/></svg>
+      <span>Поддержка</span>
+    </button>
+  </header>
+
+  <!-- Поддержка: панель поверх окна (высота окна не меняется). Письмо открывается в почте студента. -->
+  <section id="support" class="sheet" role="dialog" aria-modal="true" aria-labelledby="supportTitle" aria-hidden="true">
+    <button id="supportBack" class="others-head" type="button" tabindex="-1">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+      <span>Назад</span>
+    </button>
+
+    <div>
+      <h2 id="supportTitle">Поддержка</h2>
+      <p class="sheet-lead">Каждое письмо читаем сами и отвечаем лично.</p>
+    </div>
+
+    <div class="seg" role="radiogroup" aria-label="О чём письмо">
+      <button type="button" role="radio" aria-checked="true" data-kind="bug" tabindex="-1">Проблема</button>
+      <button type="button" role="radio" aria-checked="false" data-kind="idea" tabindex="-1">Идея</button>
+      <button type="button" role="radio" aria-checked="false" data-kind="question" tabindex="-1">Вопрос</button>
+    </div>
+
+    <div class="card tips">
+      <div class="tips-title">В письме — шаблон, останется ответить:</div>
+      <ul id="supportTips"></ul>
+      <div id="supportAttach" class="attach">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10.5 4.5 5.8 9.2a1.6 1.6 0 0 0 2.3 2.3l5-5a3 3 0 0 0-4.3-4.3l-5 5a4.4 4.4 0 0 0 6.2 6.2l4.3-4.3"/></svg>
+        <span>Прикрепите скриншот или файл выгрузки — так разберёмся быстрее.</span>
+      </div>
+    </div>
+
+    <a id="supportMail" class="mailbtn" href="#" target="_blank" rel="noopener" tabindex="-1">
+      <span class="mailbtn-text">
+        <span id="supportMailLabel" class="mailbtn-label">Написать в Gmail</span>
+        <span class="mailbtn-sub">откроется готовое письмо</span>
+      </span>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M9 4.5 12.5 8 9 11.5"/></svg>
+    </a>
+
+    <div class="alt">
+      <span>Другая почта:</span>
+      <span id="supportOther" class="alt-links"></span>
+    </div>
+
+    <button id="supportCopy" class="addr" type="button" tabindex="-1" title="Скопировать адрес">
+      <span id="supportAddr" class="addr-mail"></span>
+      <span id="supportCopyLabel" class="addr-act">Скопировать</span>
+    </button>
+  </section>
+
+  <main>
+    <section id="message" class="card note rise" style="--i:1" hidden></section>
+
+    <section id="quiz" hidden>
+      <div class="heading rise" style="--i:1">
+        <div id="course" class="eyebrow"></div>
+        <h1 id="title"></h1>
+      </div>
+
+      <div class="card stats rise" style="--i:2">
+        <div class="big">
+          <div class="num"><span id="found">0</span><span id="ofTotal" class="of"></span></div>
+          <small id="foundLabel">вопросов</small>
+        </div>
+        <div id="panes" class="panes">
+          <ul id="counts" class="bars"></ul>
+          <div id="others" class="others" aria-hidden="true">
+            <button id="othersBack" class="others-head" type="button" tabindex="-1">
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3.5 5.5 8l4.5 4.5"/></svg>
+              <span>Другие типы</span>
+            </button>
+            <ul id="othersList"></ul>
+          </div>
+        </div>
+      </div>
+
+      <p id="collectNote" class="hint rise" style="--i:3" hidden></p>
+
+      <div id="attemptFetch" class="rise" style="--i:3" hidden>
+        <button id="collectBtn" class="ghost" type="button">
+          <span id="collectLabel">Собрать остальные страницы</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h9M9 4.5 12.5 8 9 11.5"/></svg>
+        </button>
+      </div>
+
+      <button id="downloadBtn" class="cta rise" style="--i:4" type="button">
+        <span class="cta-text">
+          <span class="cta-label">Скачать TXT</span>
+          <span class="cta-sub" role="status" aria-live="polite">все вопросы одним файлом</span>
+        </span>
+        <span class="cta-icon" aria-hidden="true">
+          <svg viewBox="0 0 16 16"><path d="M8 2.5v8.5M4.5 7.5 8 11l3.5-3.5M3 13.5h10"/></svg>
+        </span>
+        <span class="bar" aria-hidden="true"><i></i></span>
+      </button>
+    </section>
+
+    <div class="card options rise" style="--i:5">
+      <label id="zipRow" class="row" hidden>
+        <span class="row-text"><b id="zipTitle">Снимки в ZIP</b><small id="zipHint">вопросы с фото — картинками</small></span>
+        <input type="checkbox" id="zip" class="switch">
+      </label>
+      <label id="resultsRow" class="row" hidden>
+        <span class="row-text"><b>Мои ответы</b><small id="resultsHint">верно / неверно и баллы</small></span>
+        <input type="checkbox" id="includeResults" class="switch">
+      </label>
+      <label class="row">
+        <span class="row-text"><b>Кнопки на странице</b><small id="buttonsHint">«Копировать» у вопросов</small></span>
+        <input type="checkbox" id="showButtons" class="switch">
+      </label>
+    </div>
+  </main>
+  <script src="popup.js"></script>
+</body>
+</html>

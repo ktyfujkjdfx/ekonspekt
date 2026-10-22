@@ -1,0 +1,38 @@
+{
+  "permissions": ["storage", "downloads"],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{fbbcda7c-34a8-4f5f-970e-c00ff03ff1fd}",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
+    }
+  },
+  "action": {
+    "default_title": "__MSG_extShortName__",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/ink/icon-16.png",
+      "32": "icons/ink/icon-32.png"
+    },
+    "theme_icons": [
+      {
+        "light": "icons/sand/icon-16.png",
+        "dark": "icons/ink/icon-16.png",
+        "size": 16
+      },
+      {
+        "light": "icons/sand/icon-32.png",
+        "dark": "icons/ink/icon-32.png",
+        "size": 32
+      }
+    ]
+  }
+}

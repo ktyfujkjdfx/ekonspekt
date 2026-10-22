@@ -1,0 +1,7 @@
+# Единые концы строк в репозитории (Windows, macOS, Linux, CI)
+* text=auto eol=lf
+*.png binary
+*.woff2 binary
+*.zip binary
+# Фикстуры — снимки реальных страниц: храним как есть
+test/fixtures/*.html -text

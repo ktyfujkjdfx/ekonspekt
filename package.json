@@ -1,0 +1,63 @@
+{
+  "name": "ekonspekt",
+  "version": "1.0.0",
+  "private": true,
+  "description": "еКонспект: вопросы тестов и лекции электронных курсов (Moodle) — в один файл для подготовки к экзаменам",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11"
+  },
+  "scripts": {
+    "build:chrome": "node scripts/build.mjs chrome",
+    "build:firefox": "node scripts/build.mjs firefox",
+    "build": "node scripts/build.mjs chrome && node scripts/build.mjs firefox",
+    "zip": "node scripts/build.mjs chrome --zip && node scripts/build.mjs firefox --zip",
+    "watch:chrome": "node scripts/build.mjs chrome --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "dump": "esbuild scripts/dump.ts --bundle --platform=node --format=cjs --external:jsdom --outfile=dist/tools/dump.cjs --log-level=warning && node dist/tools/dump.cjs",
+    "sanitize-fixture": "node scripts/sanitize-fixture.mjs",
+    "e2e": "node scripts/e2e.mjs",
+    "e2e:firefox": "node scripts/e2e-firefox.mjs",
+    "source-zip": "node scripts/source-zip.mjs",
+    "lint:firefox": "web-ext lint -s dist/firefox",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm test && npm run build && npm run lint:firefox",
+    "release": "npm run check && npm run zip && npm run source-zip && node scripts/verify-release.mjs",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "audit:prod": "npm audit --omit=dev",
+    "store-assets": "node scripts/store-assets.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.3",
+    "html-to-image": "1.11.13"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@fontsource-variable/geologica": "^5.3.0",
+    "@fontsource-variable/oswald": "^5.3.0",
+    "@types/chrome": "^0.3.6",
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^9.39.5",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^17.13.0",
+    "jsdom": "^30.1.3",
+    "playwright": "^1.64.1",
+    "prettier": "^3.9.10",
+    "selenium-webdriver": "^4.51.0",
+    "selfsigned": "^5.5.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.0",
+    "vitest": "^5.0.5",
+    "web-ext": "^10.8.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

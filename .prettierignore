@@ -1,0 +1,13 @@
+node_modules/
+dist/
+release/
+store/
+_files/
+new LECTURES/
+proverka/
+research_notes/
+test/fixtures/
+package-lock.json
+*.md
+*.html
+icons/

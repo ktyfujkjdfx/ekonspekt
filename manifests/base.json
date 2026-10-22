@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_extName__",
+  "short_name": "__MSG_extShortName__",
+  "description": "__MSG_extDescription__",
+  "version": "1.0.0",
+  "default_locale": "ru",
+  "icons": {
+    "16": "icons/app/icon-16.png",
+    "32": "icons/app/icon-32.png",
+    "48": "icons/app/icon-48.png",
+    "128": "icons/app/icon-128.png"
+  },
+  "action": {
+    "default_title": "__MSG_extShortName__",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://e.sfu-kras.ru/*"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://e.sfu-kras.ru/mod/quiz/attempt.php*",
+        "https://e.sfu-kras.ru/mod/quiz/review.php*",
+        "https://e.sfu-kras.ru/mod/quiz/view.php*",
+        "https://e.sfu-kras.ru/mod/lesson/view.php*",
+        "https://e.sfu-kras.ru/mod/lesson/continue.php*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

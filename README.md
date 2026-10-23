@@ -20,7 +20,7 @@
 
 ## Установка
 
-**Из магазинов** (после публикации): Chrome Web Store · Microsoft Edge Add-ons · Firefox Add-ons — ссылки появятся здесь.
+**Из магазина (рекомендуется):** [Chrome Web Store](https://chromewebstore.google.com/detail/dmknldkgldhkpgmpdjfnipeecbmlinpb) — Chrome, Яндекс.Браузер, Edge, Opera: «Установить», затем обновите страницу теста (F5). Firefox Add-ons — ссылка появится после проверки.
 
 **Вручную (Chrome, Яндекс.Браузер, Edge, Opera)**
 1. Скачайте `ekonspekt-chrome-<версия>.zip` со страницы [Releases](https://github.com/ktyfujkjdfx/ekonspekt/releases) и распакуйте в постоянную папку.

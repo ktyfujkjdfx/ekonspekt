@@ -1,6 +1,6 @@
 import type { LessonPage, LessonQType } from '../parser/lesson';
 import type { Media } from '../parser/text';
-import { formatDateTime, needSentence } from './txt';
+import { answerRule, formatDateTime, needSentence, plural } from './txt';
 
 /**
  * Конспект лекции: читать самому и отдавать нейросети.
@@ -36,6 +36,8 @@ export interface LessonDocInfo {
 export interface LessonFormatOptions {
   /** «pageid:номер рисунка» → путь в архиве («картинки/стр-03-1.png»). */
   imagePaths?: Map<string, string>;
+  /** Короткие пометки «!»: их смысл объяснён в шапке (заполняет formatLessonDocument). */
+  compact?: boolean;
   /** Ваши ответы и оценка за вопросы (переключатель «Мои ответы»). По умолчанию — да. */
   withAnswers?: boolean;
 }
@@ -83,10 +85,13 @@ function mediaWord(m: Media): string {
 function noteLine(p: LessonPage, opts: LessonFormatOptions): string | null {
   if (p.kind === 'question') {
     const path = p.images.length ? opts.imagePaths?.get(imageKey(p.pageid, 0)) : undefined;
-    return needSentence(p.needs, path);
+    // В файле рисунок уже стоит в тексте пометкой [рисунок: …] — второй раз его не называем.
+    const needs = opts.compact && p.images.length ? p.needs.filter((n) => n.kind !== 'image') : p.needs;
+    return needSentence(needs, path, opts.compact);
   }
   if (!p.media.length) return null;
-  return `! Здесь ${p.media.map(mediaWord).join(', ')}: в текст не попало, смотрите на странице лекции.`;
+  const what = p.media.map(mediaWord).join(', ');
+  return opts.compact ? `! здесь ${what}` : `! Здесь ${what}: в текст не попало, смотрите на странице лекции.`;
 }
 
 function indentLines(text: string, pad: string): string {
@@ -138,12 +143,6 @@ function contentBody(p: LessonPage, opts: LessonFormatOptions): string[] {
   return L.filter(Boolean);
 }
 
-function plural(n: number, one: string, few: string, many: string) {
-  const a = n % 10,
-    b = n % 100;
-  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
-}
-
 /** Конспект всей лекции. */
 export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], opts: LessonFormatOptions = {}): string {
   const content = pages.filter((p) => p.kind === 'content');
@@ -154,37 +153,31 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
 
   const L: string[] = [];
   L.push(info.title);
-  if (info.course) L.push(`Курс: ${info.course}`);
-  if (info.section) L.push(`Тема: ${info.section}`);
+  const where = [info.course && `Курс: ${info.course}`, info.section && `Тема: ${info.section}`].filter(Boolean);
+  if (where.length) L.push(where.join(' · '));
   const parts = [`${content.length} ${plural(content.length, 'страница', 'страницы', 'страниц')} текста`];
   if (questions.length) parts.push(`${questions.length} ${plural(questions.length, 'вопрос', 'вопроса', 'вопросов')}`);
-  if (withAnswers && info.finished && info.max) parts.push(`оценка за вопросы ${info.score} из ${info.max}`);
-  L.push(`Собрано: ${parts.join(', ')}`);
-  L.push(`Выгружено: ${formatDateTime(info.exportedAt)}`);
-  L.push(`Ссылка: ${info.url}`);
-  // О пропусках пишем, только когда точно знаем, чего не хватает (меню лекции). Процент прохождения сайта
-  // относится к странице, открытой первой, и вводил в заблуждение («0 %» при всех собранных страницах).
-  if (info.missing.length) {
-    L.push(`Не собраны страницы: ${info.missing.map((t) => `«${t}»`).join(', ')}. Откройте их и выгрузите снова.`);
-  }
-  if (images) {
+  if (withAnswers && info.finished && info.max) parts.push(`оценка ${info.score} из ${info.max}`);
+  L.push(`${parts.join(', ')} · ${formatDateTime(info.exportedAt)}`);
+  L.push(info.url);
+  // О пропусках пишем, только когда точно знаем, чего не хватает (меню лекции).
+  if (info.missing.length) L.push(`Не собраны страницы: ${info.missing.map((t) => `«${t}»`).join(', ')} — откройте их и выгрузите снова.`);
+  if (info.approxOrder) L.push('Порядок части страниц примерный (по номерам на сайте): пролистайте лекцию и выгрузите снова — станет точным.');
+  if (images)
     L.push(
       opts.imagePaths?.size
-        ? `Рисунки (${images}) — в папке «картинки»: пометка [рисунок: …] указывает файл.`
-        : `Рисунки (${images}) в текст не попали: на их месте пометка [рисунок: …]. Сами рисунки — в архиве ZIP или на странице лекции.`,
+        ? 'Рисунки — в папке «картинки»: вопрос с [рисунок: …] решайте по рисунку.'
+        : 'Рисунков в тексте нет, только пометки [рисунок: …]: сами рисунки — в ZIP или на сайте.',
     );
-  }
-  if (info.approxOrder) {
-    L.push(
-      'Порядок части страниц восстановлен по их номерам на сайте и может немного отличаться. Чтобы он совпал точно, пролистайте лекцию (после завершения — «Пересмотр лекции») и выгрузите снова.',
-    );
-  }
-  if (withNotes) L.push('Знак «!» отмечает то, чего нет в тексте (видео, аудио, рисунок): по таким местам ответ не угадывают, а сверяют с материалом.');
+
   if (questions.length) {
-    L.push('Ответы на вопросы сверяйте с текстом лекции: термины и определения в курсе могут отличаться от общепринятых.');
-    if (questions.some((q) => (q.options?.length ?? 0) > 1)) L.push(SHUFFLE_NOTE);
-    L.push('Отвечая, начинайте каждый ответ с начала формулировки вопроса, а не только с номера: на сайте вопросы без номеров.');
+    L.push('');
+    L.push(answerRule('текст лекции', true));
   }
+  const legend: string[] = [];
+  if (questions.some((q) => q.options?.length)) legend.push('○ один ответ, □ несколько; порядок вариантов на сайте другой');
+  if (withNotes) legend.push('! — нужен рисунок, видео или аудио вне текста: сверить, не угадывать');
+  if (legend.length) L.push(`Обозначения: ${legend.join('; ')}.`);
 
   let qn = 0;
   let pn = 0;
@@ -192,9 +185,9 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
     .map((p) => {
       if (p.kind === 'question') {
         qn++;
-        return [`## Вопрос ${qn} [${QTYPE_RU[p.qtype ?? 'other']}]`, ...questionBody(p, opts, withAnswers)].join('\n');
+        return [`## Вопрос ${qn} [${QTYPE_RU[p.qtype ?? 'other']}]`, ...questionBody(p, { ...opts, compact: true }, withAnswers)].join('\n');
       }
-      if (p.kind === 'content') return [`## ${pageTitle(p, ++pn)}`, ...contentBody(p, opts)].join('\n');
+      if (p.kind === 'content') return [`## ${pageTitle(p, ++pn)}`, ...contentBody(p, { ...opts, compact: true })].join('\n');
       return '';
     })
     .filter(Boolean)

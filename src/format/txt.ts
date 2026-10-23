@@ -26,6 +26,8 @@ export interface FormatOptions {
   materialTitles?: string[];
   /** Пропуск → «в вопросе N: «…»»: тот же текст в другом вопросе теста (заполняет formatDocument). */
   hints?: Map<Gap, string>;
+  /** Короткие пометки: их смысл объяснён в шапке файла (заполняет formatDocument). */
+  compact?: boolean;
 }
 
 export interface DocumentInfo {
@@ -99,9 +101,11 @@ export function imageFileName(number: string, infoIndex = 1): string {
 const OUTCOME_RU = { correct: 'верно', incorrect: 'неверно', partial: 'частично' } as const;
 const mark = (c: boolean | null) => (c === true ? ' ✓' : c === false ? ' ✗' : '');
 
-/** «! …» — что нужно для ответа и просьба не угадывать. Одна строка на вопрос. */
-/** Та же строка «!» для любых вопросов (теста и лекции). */
-export function needSentence(needs: Need[], imagePath?: string): string | null {
+/**
+ * «! …» — что нужно для ответа, но в текст не попало. В файле — коротко («! нужно: видео»), смысл знака
+ * объяснён один раз в шапке; у одного вопроса в буфере шапки нет — там полная фраза.
+ */
+export function needSentence(needs: Need[], imagePath?: string, compact = false): string | null {
   if (!needs.length) return null;
   const parts = needs.map((n: Need) => {
     switch (n.kind) {
@@ -121,6 +125,7 @@ export function needSentence(needs: Need[], imagePath?: string): string | null {
   });
   // Одна фраза и для человека, и для нейросети: что нужно, почему его нет и что делать.
   const onlyText = needs.every((n) => n.kind === 'text');
+  if (compact) return onlyText ? '! нужен текст к заданию' : `! нужно: ${parts.join(', ')}`;
   return onlyText
     ? '! Для ответа нужен текст к заданию. Если его нет выше, ответ не угадывать, а сверить с текстом.'
     : `! Для ответа нужно: ${parts.join(', ')}. В этом тексте его нет, поэтому ответ не угадывать, а сверить с материалом.`;
@@ -217,9 +222,10 @@ export function formatQuestion(q: Question, opts: FormatOptions = {}): string {
   const need = needSentence(
     q.needs.filter((n) => !covered.includes(n)),
     imagePath,
+    opts.compact,
   );
   if (need) L.push(need);
-  for (const n of covered) L.push(`= Материал «${n.label}» — в конце файла, в разделе «Материал курса».`);
+  for (const n of covered) L.push(`(материал «${n.label}» — в конце файла)`);
   const known = opts.known?.get(q.id);
   if (known) L.push(known);
 
@@ -261,67 +267,67 @@ export function formatDateTime(d: Date): string {
 
 const nums = (qs: Question[]) => qs.map((q) => '№' + q.number).join(', ');
 
+export function plural(n: number, one: string, few: string, many: string): string {
+  const a = n % 10;
+  const b = n % 100;
+  return a === 1 && b !== 11 ? one : a >= 2 && a <= 4 && (b < 12 || b > 14) ? few : many;
+}
+
+/**
+ * Как отвечать — одна строка для нейросети и человека. Ответ «N. первые слова вопроса — ответ» можно отметить
+ * на сайте, не открывая файл, даже если порядок вопросов разный; без объяснений ответ короткий.
+ */
+export function answerRule(source: string, byText = false): string {
+  return (
+    `Как отвечать: строка на вопрос — «N. первые слова вопроса — ${byText ? 'текст' : 'буква или текст'} ответа»; ` +
+    'соответствие и пропуски — ответы через « · » по порядку строк. Без объяснений. Не уверены — «(?)», но не пропускайте: пустой ответ = 0 баллов. ' +
+    `Опирайтесь на ${source}, а не на общие знания: термины и цифры в курсе бывают другими.`
+  );
+}
+
 export function formatDocument(info: DocumentInfo, questions: Question[], opts: FormatOptions = {}): string {
   const real = questions.filter((q) => q.kind !== 'info');
-  const byKind: [string, number][] = [
-    ['один ответ', real.filter((q) => q.kind === 'single').length],
-    ['несколько ответов', real.filter((q) => q.kind === 'multi').length],
-    ['выбор/соответствие', real.filter((q) => q.kind === 'match').length],
-    ['другие', real.filter((q) => q.kind === 'other').length],
-  ];
   const photos = real.filter((q) => q.hasPhoto);
   const media = real.filter((q) => q.needs.some((n) => n.kind === 'video' || n.kind === 'audio' || n.kind === 'media'));
   const material = real.filter((q) => q.needs.length);
-
-  const L: string[] = [];
-  L.push(info.meta.quizTitle);
-  if (info.meta.course) L.push(`Курс: ${info.meta.course}`);
-  if (info.meta.section) L.push(`Тема: ${info.meta.section}`);
-  L.push(
-    `Вопросов: ${real.length} (${
-      byKind
-        .filter(([, n]) => n)
-        .map(([k, n]) => `${k} — ${n}`)
-        .join(', ') || 'нет'
-    })`,
-  );
-  L.push(`Выгружено: ${formatDateTime(info.exportedAt)}, ${info.meta.mode === 'review' ? 'просмотр результатов' : 'попытка'}`);
-  L.push(`Ссылка: ${info.meta.url}`);
-  if (photos.length) L.push(`С изображением: ${nums(photos)}${opts.imagePaths?.size ? ' (снимки в папке «картинки»)' : ' (смотрите на сайте)'}`);
-  if (media.length) L.push(`С видео/аудио: ${nums(media)}`);
-  if (info.missingNumbers?.length) {
-    L.push(
-      `Не собраны: ${info.missingNumbers.map((n) => '№' + n).join(', ')} (всего в тесте ${info.meta.totalQuestions}). Откройте эти страницы теста и выгрузите снова.`,
-    );
-  }
-  if (opts.withResults) {
-    const summary = (info.attemptSummary ?? []).filter((r) => /^(Баллы|Оценка)/i.test(r.title));
-    if (summary.length) L.push(`Результат: ${summary.map((r) => `${r.title.toLowerCase()} ${r.value}`).join(', ')}`);
-    L.push('Обозначения: (ваш) — ваш выбор, ✓ верно, ✗ неверно.');
-    if (!info.rightAnswersShown) L.push('Правильные ответы преподаватель не показал: отмечено только, верны ли ваши.');
-  }
-  if (material.length)
-    L.push('Знак «!» отмечает вопросы, для ответа на которые нужен материал вне этого файла: такие ответы не угадывают, а сверяют с материалом.');
-  if (opts.known?.size || opts.appendix?.length)
-    L.push('Строка «=» и справка в конце — ответы, которые сайт уже подтвердил в прошлых попытках: на них можно опираться.');
   const hints = opts.hints ?? crossReferences(questions);
   const extras = real.some((q) => {
     const rows = q.kind === 'match' ? q.gaps.filter((g) => !/^\[\d+\]$/.test(g.label)) : [];
     const common = sameOptions(rows);
     return !!common && common.length > rows.length;
   });
-  if ([...hints.keys()].some((g) => !(opts.withResults && g.correct === true)))
-    L.push('Пометка [в вопросе N: «…»] — тот же текст в другом вопросе этого теста, где пропущенное слово видно: сверьте с ней.');
-  if (extras) L.push('В соответствии каждый вариант обычно подходит одному пункту; «лишних: N» — варианты, которые не подходят никуда.');
-  // Главная причина неверных ответов — общие знания вместо курса; вторая — отказ отвечать на вопрос с опечаткой или склейкой.
-  L.push(
-    (opts.material?.length
-      ? `Ответы сверяйте с ${opts.material.length > 1 ? 'лекциями' : 'лекцией'} курса в конце файла: термины, классификации и цифры в курсе бывают другими, чем в общих источниках.`
-      : 'Ответы сверяйте с материалами курса: термины, классификации и цифры в нём бывают другими, чем в общих источниках.') +
-      ' Если вопрос оборван или склеен с чужим текстом (так бывает в самих тестах), всё равно выберите самый подходящий вариант и пометьте его как предположение: пустой ответ — 0 баллов.',
-  );
 
-  const body = questions.map((q) => formatQuestion(q, { ...opts, hints })).join('\n\n');
+  const L: string[] = [];
+  L.push(info.meta.quizTitle);
+  const where = [info.meta.course && `Курс: ${info.meta.course}`, info.meta.section && `Тема: ${info.meta.section}`].filter(Boolean);
+  if (where.length) L.push(where.join(' · '));
+  L.push(
+    `${real.length} ${plural(real.length, 'вопрос', 'вопроса', 'вопросов')} · ${info.meta.mode === 'review' ? 'просмотр результатов' : 'попытка'} · ${formatDateTime(info.exportedAt)}`,
+  );
+  L.push(info.meta.url);
+  if (photos.length) L.push(`С изображением: ${nums(photos)}${opts.imagePaths?.size ? ' (снимки в папке «картинки»)' : ' (смотрите на сайте)'}`);
+  if (media.length) L.push(`С видео/аудио: ${nums(media)}`);
+  if (info.missingNumbers?.length) {
+    L.push(`Не собраны: ${info.missingNumbers.map((n) => '№' + n).join(', ')} из ${info.meta.totalQuestions} — откройте эти страницы теста и выгрузите снова.`);
+  }
+  if (opts.withResults) {
+    const summary = (info.attemptSummary ?? []).filter((r) => /^(Баллы|Оценка)/i.test(r.title));
+    if (summary.length) L.push(`Результат: ${summary.map((r) => `${r.title.toLowerCase()} ${r.value}`).join(', ')}`);
+  }
+
+  L.push('');
+  L.push(answerRule(opts.material?.length ? `${opts.material.length > 1 ? 'лекции' : 'лекцию'} в конце файла` : 'материалы курса'));
+  // Обозначения — только те, что есть в файле.
+  const legend: string[] = [];
+  if (opts.withResults) legend.push(`(ваш) — ваш выбор, ✓ верно, ✗ неверно${info.rightAnswersShown ? '' : ' (правильные ответы преподаватель скрыл)'}`);
+  if (material.length) legend.push('! — нужен материал вне файла: сверить, не угадывать');
+  if ([...hints.keys()].some((g) => !(opts.withResults && g.correct === true)))
+    legend.push('[в вопросе N: «…»] — тот же текст в другом вопросе, пропуск там виден');
+  if (extras) legend.push('(лишних: N) — варианты, которые никуда не подходят');
+  if (opts.known?.size || opts.appendix?.length) legend.push('= — ответ, уже подтверждённый сайтом');
+  if (legend.length) L.push(`Обозначения: ${legend.join('; ')}.`);
+
+  const body = questions.map((q) => formatQuestion(q, { ...opts, hints, compact: true })).join('\n\n');
   let tail = opts.appendix?.length ? '\n\n' + opts.appendix.join('\n') : '';
   if (opts.material?.length) tail += '\n\n# Материал курса\n\n' + opts.material.join('\n\n');
   return (L.join('\n') + '\n\n' + body + tail + '\n').replace(/\n/g, EOL);

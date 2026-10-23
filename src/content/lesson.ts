@@ -243,6 +243,7 @@ async function lessonStatus(meta: LessonMeta, busy: boolean): Promise<LessonStat
     finished: !!rec?.finished,
     answers: pages.filter((p) => p.kind === 'question' && p.answer).length,
     approxOrder: rec ? orderIsApproximate(rec) : false,
+    collected: !!rec?.collectedAt && !!rec.finished,
     busy,
   };
 }

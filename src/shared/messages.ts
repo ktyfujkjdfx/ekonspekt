@@ -50,6 +50,8 @@ export interface LessonStatus {
   answers: number;
   /** Порядок части страниц — догадка по id (студент открывал не все сам). */
   approxOrder: boolean;
+  /** «Собрать всю лекцию» уже запускали после завершения лекции. */
+  collected: boolean;
   busy: boolean;
 }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadFixture } from './helpers';
 import { hasRightAnswers, parseAttemptSummary, parsePageMeta, parseQuestions } from '../src/parser/page';
-import { formatDocument, formatQuestion, imageFileName, safeFileName } from '../src/format/txt';
+import { answerRule, formatDocument, formatQuestion, imageFileName, safeFileName } from '../src/format/txt';
 
 const ATTEMPT_URL = 'https://e.sfu-kras.ru/mod/quiz/attempt.php?attempt=9437135&cmid=1444264&page=9';
 const DATE = new Date(2026, 9, 21, 23, 5);
@@ -81,16 +81,15 @@ describe('formatDocument', () => {
     const doc = loadFixture('synthetic-attempt-types.html');
     const url = 'https://e.sfu-kras.ru/mod/quiz/attempt.php?attempt=1&cmid=555';
     const txt = lf(formatDocument({ meta: parsePageMeta(doc, url), exportedAt: DATE }, parseQuestions(doc)));
-    expect(txt.split('\n').slice(0, 10)).toEqual([
+    expect(txt.split('\n').slice(0, 9)).toEqual([
       'Синтетический тест',
       'Курс: Информатика',
-      'Вопросов: 6 (один ответ — 1, несколько ответов — 1, выбор/соответствие — 2, другие — 2)',
-      'Выгружено: 21.10.2026 23:05, попытка',
-      `Ссылка: ${url}`,
+      '6 вопросов · попытка · 21.10.2026 23:05',
+      url,
       'С изображением: №1, №4 (смотрите на сайте)',
-      'Знак «!» отмечает вопросы, для ответа на которые нужен материал вне этого файла: такие ответы не угадывают, а сверяют с материалом.',
-      'В соответствии каждый вариант обычно подходит одному пункту; «лишних: N» — варианты, которые не подходят никуда.',
-      'Ответы сверяйте с материалами курса: термины, классификации и цифры в нём бывают другими, чем в общих источниках. Если вопрос оборван или склеен с чужим текстом (так бывает в самих тестах), всё равно выберите самый подходящий вариант и пометьте его как предположение: пустой ответ — 0 баллов.',
+      '',
+      answerRule('материалы курса'),
+      'Обозначения: ! — нужен материал вне файла: сверить, не угадывать; (лишних: N) — варианты, которые никуда не подходят.',
       '',
     ]);
     expect(txt).not.toMatch(/[═─\t]/);
@@ -99,7 +98,7 @@ describe('formatDocument', () => {
   it('неполный сбор — предупреждение', () => {
     const doc = loadFixture('attempt-multichoice-single.html', ATTEMPT_URL);
     const txt = formatDocument({ meta: parsePageMeta(doc, ATTEMPT_URL), exportedAt: DATE, missingNumbers: ['1', '2'] }, parseQuestions(doc));
-    expect(txt).toContain('Не собраны: №1, №2 (всего в тесте 10). Откройте эти страницы теста и выгрузите снова.');
+    expect(txt).toContain('Не собраны: №1, №2 из 10 — откройте эти страницы теста и выгрузите снова.');
   });
 
   it('реальный review: результат попытки, скрытые правильные ответы', () => {
@@ -114,7 +113,7 @@ describe('formatDocument', () => {
     );
     expect(txt).toContain('С видео/аудио: №1');
     expect(txt).toContain('Результат: баллы 9,0/17,0, оценка 5,3 из 10,0 (52,9%)');
-    expect(txt).toContain('Правильные ответы преподаватель не показал');
+    expect(txt).toContain('(правильные ответы преподаватель скрыл)');
   });
 
   it('синтетический review с правильными ответами', () => {
@@ -125,7 +124,7 @@ describe('formatDocument', () => {
         withResults: true,
       }),
     );
-    expect(txt).toContain('Выгружено: 21.10.2026 23:05, просмотр результатов');
+    expect(txt).toContain('4 вопроса · просмотр результатов · 21.10.2026 23:05');
     expect(txt).toContain(
       [
         'Вопрос 1 [один ответ]',
@@ -140,7 +139,7 @@ describe('formatDocument', () => {
     );
     expect(txt).toContain('a) солнце (ваш ✓)\nb) ветер (✓)\nc) уголь');
     expect(txt).toContain('- Вода → H2SO4 ✗ (H2SO4 / H2O)');
-    expect(txt).not.toContain('преподаватель не показал');
+    expect(txt).not.toContain('преподаватель скрыл');
   });
 
   it('Placement test: 120 вопросов, быстро и компактно', () => {

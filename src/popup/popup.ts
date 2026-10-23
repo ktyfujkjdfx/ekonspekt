@@ -290,12 +290,20 @@ function renderLesson(ls: LessonStatus, settings: Awaited<ReturnType<typeof getS
   if (!$('downloadBtn').classList.contains('done') && !$('downloadBtn').classList.contains('error')) updateDownloadLabel();
 }
 
+let lessonAutoCollect = false;
+
 async function refreshLesson() {
   const settings = await getSettings();
   try {
     const r = await send({ type: 'status' });
     if (!r.ok || !r.lesson) throw new Error('no lesson');
     renderLesson(r.lesson, settings);
+    // Пройденная лекция: сбор (только чтение) уже ничего не меняет на сайте — запускаем сами один раз,
+    // как загрузку страниц в результатах теста: недостающие страницы, ваши ответы, уточнённый порядок.
+    if (r.lesson.finished && !r.lesson.collected && !r.lesson.busy && !lessonAutoCollect) {
+      lessonAutoCollect = true;
+      void runCollect('collectLesson');
+    }
   } catch {
     // continue.php — ответ на отправленную форму: перезагрузка отправила бы ответ повторно. Только подсказка.
     if (/continue\.php/.test(currentUrl)) showMessage('Перейдите на следующую страницу лекции — расширение подключится и запомнит её.');

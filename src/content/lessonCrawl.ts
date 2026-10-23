@@ -205,6 +205,7 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
   }
   await updateLesson(meta, (r) => {
     r.absent = Array.from(new Set([...(r.absent ?? []), ...absent])).slice(-400);
+    r.collectedAt = Date.now();
   });
   const after = before + found.length;
   const withAnswers = answers ? `; ваших ответов: ${answers}` : '';

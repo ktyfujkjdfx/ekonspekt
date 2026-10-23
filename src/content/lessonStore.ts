@@ -28,6 +28,8 @@ export interface StoredLesson {
   absent?: string[];
   nextSeq: number;
   updatedAt: number;
+  /** Когда последний раз завершился «Собрать всю лекцию». */
+  collectedAt?: number;
 }
 
 const PREFIX = 'lesson:';
@@ -196,7 +198,32 @@ export function orderedPages(rec: StoredLesson): LessonPage[] {
     while (at < out.length && out[at].fetched && Number(out[at].pageid) < id) at++;
     out.splice(at, 0, f);
   }
+  // Подсказки сайта точнее номеров id: меню лекции идёт в порядке страниц, а номера в названиях —
+  // в порядке вопросов. Переставляем только найденные сбором страницы, на их же местах.
+  const menuIndex = new Map((rec.menu ?? []).map((m, i) => [m.pageid, i]));
+  reorderInPlace(out, (p) => (p.fetched && menuIndex.has(p.pageid) ? menuIndex.get(p.pageid)! : null));
+  reorderInPlace(out, (p) => (p.fetched && p.kind === 'question' ? titleNumber(p.title) : null), 3);
   return out.map((p, i) => ({ ...p, seq: i + 1 }));
+}
+
+/** «Вопрос 7», «Задание 3.», «Q12», «7. …» → 7. */
+export function titleNumber(title: string): number | null {
+  const m = title.trim().match(/^(?:(?:вопрос|задание|задача|тест|упражнение|question|task|q)\s*№?\s*)?(\d{1,3})(?:[.):\s]|$)/i);
+  return m ? Number(m[1]) : null;
+}
+
+/** Страницы с ключом встают по возрастанию ключа на те же позиции; ключи должны быть разными. */
+function reorderInPlace(pages: LessonPage[], key: (p: LessonPage) => number | null, min = 2): void {
+  const slots: number[] = [];
+  const keyed: { p: LessonPage; k: number }[] = [];
+  pages.forEach((p, i) => {
+    const k = key(p);
+    if (k == null) return;
+    slots.push(i);
+    keyed.push({ p, k });
+  });
+  if (keyed.length < min || new Set(keyed.map((x) => x.k)).size !== keyed.length) return;
+  keyed.sort((a, b) => a.k - b.k).forEach((x, j) => (pages[slots[j]] = x.p));
 }
 
 /** Порядок части страниц — догадка по номерам id: студент открывал не все страницы сам. */

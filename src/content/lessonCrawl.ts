@@ -150,7 +150,24 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
   const absent: string[] = [];
   const found: string[] = [];
   let requests = 0;
+  let answers = 0;
   progress('Читаю лекцию…', 0, 100);
+
+  // Лекция пройдена: в «Пересмотре лекции» сайт показывает на странице вопроса ваш ответ — дочитываем его
+  // в уже собранных вопросах (тот же GET view.php, ничего не отправляем).
+  const unanswered = rec?.finished
+    ? Object.values(rec.pages)
+        .filter((p) => p.kind === 'question' && !p.answer && Number(p.pageid) > 0)
+        .map((p) => Number(p.pageid))
+    : [];
+  for (let i = 0; i < unanswered.length && requests < MAX_REQUESTS; i += CONCURRENCY) {
+    const batch = unanswered.slice(i, i + CONCURRENCY);
+    requests += batch.length;
+    progress('Читаю ваши ответы…', i, unanswered.length + EDGE * 2);
+    const hits = (await Promise.all(batch.map((id) => probe(id, meta, pageUrl(id))))).filter((r): r is Hit => !!r && !!r.page.answer);
+    answers += hits.length;
+    if (hits.length) await updateLesson(meta, (r) => hits.forEach((h) => rememberFetchedPage(r, h.page)));
+  }
 
   for (let batch = planBatch(state); batch.length && requests < MAX_REQUESTS; batch = planBatch(state)) {
     batch.forEach((id) => state.tried.add(id));
@@ -158,6 +175,7 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
     const results = await Promise.all(batch.map((id) => probe(id, meta, pageUrl(id))));
 
     const hits = results.filter((r): r is Hit => !!r);
+    answers += hits.filter((h) => h.page.kind === 'question' && h.page.answer).length;
     batch.filter((id) => !hits.some((h) => h.id === id)).forEach((id) => absent.push(String(id)));
     for (const h of hits) {
       state.have.add(h.id);
@@ -167,7 +185,7 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
     if (hits.length) {
       // Одна запись в хранилище на пачку.
       await updateLesson(meta, (r) => {
-        for (const h of hits) rememberFetchedPage(r, { ...h.page, answer: null, correct: null });
+        for (const h of hits) rememberFetchedPage(r, h.page);
         r.known = Array.from(new Set([...(r.known ?? []), ...state.explicit.map(String)]));
       });
     }
@@ -178,7 +196,7 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
   }
 
   // Ничего не нашлось — проверим, отдаёт ли сайт хотя бы известную страницу по ссылке, чтобы честно объяснить почему.
-  if (!found.length) {
+  if (!found.length && !answers) {
     const checkId = current ?? Math.min(...have);
     const g = await getPage(pageUrl(checkId), checkId);
     if (g.kind !== 'page' || !parseLessonPage(g.doc, pageUrl(checkId))) {
@@ -189,7 +207,8 @@ export async function collectLesson(meta: LessonMeta, progress: (t: string, d?: 
     r.absent = Array.from(new Set([...(r.absent ?? []), ...absent])).slice(-400);
   });
   const after = before + found.length;
+  const withAnswers = answers ? `; ваших ответов: ${answers}` : '';
   return found.length
-    ? `Готово: найдено ещё ${found.length} ${found.length === 1 ? 'страница' : found.length < 5 ? 'страницы' : 'страниц'}, в конспекте ${after}`
-    : `Новых страниц нет: в конспекте все ${after}`;
+    ? `Готово: найдено ещё ${found.length} ${found.length === 1 ? 'страница' : found.length < 5 ? 'страницы' : 'страниц'}, в конспекте ${after}${withAnswers}`
+    : `Новых страниц нет: в конспекте все ${after}${withAnswers}`;
 }

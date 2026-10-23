@@ -226,6 +226,7 @@ describe('конспект', () => {
         'Рисунки (1) — в папке «картинки»: пометка [рисунок: …] указывает файл.',
         'Ответы на вопросы сверяйте с текстом лекции: термины и определения в курсе могут отличаться от общепринятых.',
         'Порядок вариантов на сайте меняется при каждом открытии, поэтому ориентируйтесь на текст варианта, а не на его место в списке.',
+        'Отвечая, начинайте каждый ответ с начала формулировки вопроса, а не только с номера: на сайте вопросы без номеров.',
         '',
         '## Блокирующие функции',
         'MPI_Send блокирует процесс.',
@@ -371,7 +372,7 @@ describe('граничные случаи лекции', () => {
 
 describe('«Собрать всю лекцию»: какие страницы проверять', async () => {
   const { planBatch, edgeMisses, EDGE } = await import('../src/content/lessonCrawl');
-  const { rememberFetchedPage, orderedPages } = await import('../src/content/lessonStore');
+  const { rememberFetchedPage, rememberPage, orderedPages, orderIsApproximate } = await import('../src/content/lessonStore');
   const { explicitPageIds } = await import('../src/parser/lesson');
 
   it('пачка: сначала явные ссылки, потом пропуски между известными, потом края вверх и вниз', () => {
@@ -436,6 +437,60 @@ describe('«Собрать всю лекцию»: какие страницы п
     rememberFetchedPage(rec, page({ pageid: '8', kind: 'content', title: 'Z' }));
     expect(orderedPages(rec).map((p) => p.title)).toEqual(['Z', 'A', 'B', 'C', 'D']);
     expect(rec.pages[12].fetched).toBe(true);
+  });
+
+  it('страница, вставленная преподавателем позже (большой id), встаёт на место, когда студент её открывает', () => {
+    const rec = { pages: {}, nextSeq: 1 } as never as StoredLesson;
+    rememberPage(rec, page({ pageid: '10', kind: 'content', title: 'Начало' }));
+    rememberFetchedPage(rec, page({ pageid: '11', kind: 'question', title: 'Эссе' }));
+    rememberFetchedPage(rec, page({ pageid: '20', kind: 'question', title: 'Колодец' }));
+    expect(orderedPages(rec).map((p) => p.title)).toEqual(['Начало', 'Эссе', 'Колодец']);
+    expect(orderIsApproximate(rec)).toBe(true);
+    // Студент листает «Пересмотр лекции»: сайт показывает колодец перед эссе.
+    rememberPage(rec, page({ pageid: '20', kind: 'question', title: 'Колодец' }));
+    rememberPage(rec, page({ pageid: '11', kind: 'question', title: 'Эссе' }));
+    expect(orderedPages(rec).map((p) => p.title)).toEqual(['Начало', 'Колодец', 'Эссе']);
+    expect(orderedPages(rec).map((p) => p.seq)).toEqual([1, 2, 3]);
+    expect(orderIsApproximate(rec)).toBe(false);
+  });
+
+  it('ответ из «Пересмотра лекции»: сохраняется у новой страницы и дописывается к уже собранной', () => {
+    const rec = { pages: {}, nextSeq: 1 } as never as StoredLesson;
+    rememberFetchedPage(rec, page({ pageid: '5', kind: 'question', answer: 'Поток', correct: true }));
+    expect(rec.pages[5].answer).toBe('Поток');
+    expect(rec.pages[5].correct).toBeNull();
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question' }));
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question', answer: 'Ответ Б' }));
+    expect(rec.pages[6].answer).toBe('Ответ Б');
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question', answer: 'другое' }));
+    expect(rec.pages[6].answer).toBe('Ответ Б');
+  });
+});
+
+describe('конспект лекции: «Мои ответы» и порядок', () => {
+  const q = page({
+    pageid: '2',
+    kind: 'question',
+    qtype: 'single',
+    text: 'Что такое поток?',
+    options: ['Поток', 'Базис'],
+    answer: 'Поток',
+    correct: true,
+    seq: 1,
+  });
+
+  it('без «Моих ответов» — только вопросы, без ответа и оценки', () => {
+    const on = lf(formatLessonDocument(info(), [q]));
+    const off = lf(formatLessonDocument(info(), [q], { withAnswers: false }));
+    expect(on).toContain('Ваш ответ: «Поток» ✓');
+    expect(off).not.toContain('Ваш ответ');
+    expect(off).not.toContain('оценка за вопросы');
+    expect(off).toContain('Отвечая, начинайте каждый ответ с начала формулировки вопроса');
+  });
+
+  it('приблизительный порядок — честная строка в шапке', () => {
+    expect(lf(formatLessonDocument(info({ approxOrder: true }), [q]))).toContain('Порядок части страниц восстановлен по их номерам');
+    expect(lf(formatLessonDocument(info(), [q]))).not.toContain('Порядок части страниц');
   });
 });
 

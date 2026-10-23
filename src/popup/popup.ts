@@ -191,6 +191,11 @@ function render(s: QuizStatus, settings: Awaited<ReturnType<typeof getSettings>>
 
 /** Подпись под «Мои ответы»: предупреждаем, если правильные ответы преподаватель скрыл. */
 function updateResultsHint(on: boolean) {
+  if (lesson) {
+    $('resultsHint').textContent = on ? `ваши ответы: ${lesson.answers} из ${lesson.questions}` : 'только вопросы, без ответов';
+    $('resultsHint').classList.remove('warn');
+    return;
+  }
   const noRight = status?.mode === 'review' && on && !status.rightAnswersShown;
   const hint = $('resultsHint');
   hint.textContent = noRight ? 'правильные ответы скрыты' : 'верно / неверно и баллы';
@@ -262,13 +267,19 @@ function renderLesson(ls: LessonStatus, settings: Awaited<ReturnType<typeof getS
   note.hidden = false;
   note.textContent = !ls.pages
     ? 'Листайте лекцию — каждая открытая страница сама попадёт в конспект.'
-    : ls.finished
-      ? 'Лекция пройдена. Если каких-то страниц не хватает — «Собрать всю лекцию».'
-      : `Пройдено ${ls.progress ?? 0}%. Назад листать не нужно: открытые страницы уже в конспекте.`;
+    : ls.finished && ls.approxOrder
+      ? 'Часть страниц собрана без вас, их порядок примерный. Для точного: «Пересмотр лекции» на последней странице и пролистать — оценка не изменится.'
+      : ls.finished
+        ? ls.questions > ls.answers
+          ? 'Лекция пройдена. «Собрать всю лекцию» добавит недостающие страницы и ваши ответы.'
+          : 'Лекция пройдена. Если каких-то страниц не хватает — «Собрать всю лекцию».'
+        : `Пройдено ${ls.progress ?? 0}%. Назад листать не нужно: открытые страницы уже в конспекте.`;
   // Собрать недостающие страницы (в том числе открытые до установки расширения и те, куда «назад» не вернуться).
   $('attemptFetch').hidden = !ls.pages;
   if (!lessonWarned) $('collectLabel').textContent = 'Собрать всю лекцию';
-  $('resultsRow').hidden = true;
+  $('resultsRow').hidden = !(ls.answers || ls.finished);
+  $<HTMLInputElement>('includeResults').checked = settings.includeResults;
+  updateResultsHint(settings.includeResults);
   $('zipRow').hidden = false;
   $('zipTitle').textContent = 'Рисунки в ZIP';
   $('zipHint').textContent = 'схемы и картинки лекции';

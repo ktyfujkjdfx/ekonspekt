@@ -28,12 +28,16 @@ export interface LessonDocInfo {
   max: number | null;
   /** Страницы меню лекции, которых нет в конспекте. */
   missing: string[];
+  /** Порядок части страниц восстановлен по номерам id и может отличаться от сайта. */
+  approxOrder?: boolean;
   exportedAt: Date;
 }
 
 export interface LessonFormatOptions {
   /** «pageid:номер рисунка» → путь в архиве («картинки/стр-03-1.png»). */
   imagePaths?: Map<string, string>;
+  /** Ваши ответы и оценка за вопросы (переключатель «Мои ответы»). По умолчанию — да. */
+  withAnswers?: boolean;
 }
 
 const QTYPE_RU: Record<LessonQType, string> = {
@@ -146,6 +150,7 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
   const questions = pages.filter((p) => p.kind === 'question');
   const images = pages.reduce((n, p) => n + p.images.length, 0);
   const withNotes = pages.some((p) => noteLine(p, opts));
+  const withAnswers = opts.withAnswers ?? true;
 
   const L: string[] = [];
   L.push(info.title);
@@ -153,7 +158,7 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
   if (info.section) L.push(`Тема: ${info.section}`);
   const parts = [`${content.length} ${plural(content.length, 'страница', 'страницы', 'страниц')} текста`];
   if (questions.length) parts.push(`${questions.length} ${plural(questions.length, 'вопрос', 'вопроса', 'вопросов')}`);
-  if (info.finished && info.max) parts.push(`оценка за вопросы ${info.score} из ${info.max}`);
+  if (withAnswers && info.finished && info.max) parts.push(`оценка за вопросы ${info.score} из ${info.max}`);
   L.push(`Собрано: ${parts.join(', ')}`);
   L.push(`Выгружено: ${formatDateTime(info.exportedAt)}`);
   L.push(`Ссылка: ${info.url}`);
@@ -169,10 +174,16 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
         : `Рисунки (${images}) в текст не попали: на их месте пометка [рисунок: …]. Сами рисунки — в архиве ZIP или на странице лекции.`,
     );
   }
+  if (info.approxOrder) {
+    L.push(
+      'Порядок части страниц восстановлен по их номерам на сайте и может немного отличаться. Чтобы он совпал точно, пролистайте лекцию (после завершения — «Пересмотр лекции») и выгрузите снова.',
+    );
+  }
   if (withNotes) L.push('Знак «!» отмечает то, чего нет в тексте (видео, аудио, рисунок): по таким местам ответ не угадывают, а сверяют с материалом.');
   if (questions.length) {
     L.push('Ответы на вопросы сверяйте с текстом лекции: термины и определения в курсе могут отличаться от общепринятых.');
     if (questions.some((q) => (q.options?.length ?? 0) > 1)) L.push(SHUFFLE_NOTE);
+    L.push('Отвечая, начинайте каждый ответ с начала формулировки вопроса, а не только с номера: на сайте вопросы без номеров.');
   }
 
   let qn = 0;
@@ -181,7 +192,7 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
     .map((p) => {
       if (p.kind === 'question') {
         qn++;
-        return [`## Вопрос ${qn} [${QTYPE_RU[p.qtype ?? 'other']}]`, ...questionBody(p, opts, true)].join('\n');
+        return [`## Вопрос ${qn} [${QTYPE_RU[p.qtype ?? 'other']}]`, ...questionBody(p, opts, withAnswers)].join('\n');
       }
       if (p.kind === 'content') return [`## ${pageTitle(p, ++pn)}`, ...contentBody(p, opts)].join('\n');
       return '';

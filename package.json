@@ -1,6 +1,6 @@
 {
   "name": "ekonspekt",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "еКонспект: вопросы тестов и лекции электронных курсов (Moodle) — в один файл для подготовки к экзаменам",
   "license": "MIT",

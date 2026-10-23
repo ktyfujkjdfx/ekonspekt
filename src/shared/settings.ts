@@ -8,14 +8,17 @@ export interface Settings {
   attemptFetchAck: boolean;
   /** Пользователь подтвердил предупреждение про «Собрать всю лекцию». */
   lessonFetchAck: boolean;
+  /** Версия умолчаний, с которой совпадают сохранённые настройки (миграции в background). */
+  defaultsVersion: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   showButtons: true,
   zip: false,
-  includeResults: false,
+  includeResults: true,
   attemptFetchAck: false,
   lessonFetchAck: false,
+  defaultsVersion: 2,
 };
 
 const KEY = 'settings';

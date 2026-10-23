@@ -245,8 +245,11 @@ export function formatQuestion(q: Question, opts: FormatOptions = {}): string {
     const r = q.result;
     const outcome = r.outcome ? OUTCOME_RU[r.outcome] : (r.state || '').toLowerCase();
     const grade = r.grade ? `, ${r.grade}` : '';
-    if (outcome || grade) L.push(`Итог: ${outcome || '—'}${grade}`);
-    if (r.rightAnswer) L.push(`Правильный ответ: ${r.rightAnswer}`);
+    // Верно решённый вопрос уже виден по ✓ у ответа: «Итог» и «Правильный ответ» там — повтор.
+    const marked = q.choices.some((c) => c.checked && c.correct === true) || q.gaps.some((g) => g.correct === true);
+    const solved = r.outcome === 'correct' && marked;
+    if (!solved && (outcome || grade)) L.push(`Итог: ${outcome || '—'}${grade}`);
+    if (r.rightAnswer && !solved) L.push(`Правильный ответ: ${r.rightAnswer}`);
     else if (q.kind === 'single' && r.outcome === 'incorrect' && !q.choices.some((c) => c.correct === true)) {
       // Правильный ответ скрыт, но выбор сужается: это помогает и при повторной попытке.
       const left = q.choices.filter((c) => !c.checked && c.correct !== false).map((c) => c.label);
@@ -274,13 +277,14 @@ export function plural(n: number, one: string, few: string, many: string): strin
 }
 
 /**
- * Форма ответа по типу вопроса (метка из «[…]»): короткая и такая, какую вводят на сайте. В лекции буквы
- * вариантов не постоянны, поэтому там — текст варианта. Незнакомый тип — «как вводят на сайте».
+ * Короткий ответ по типу вопроса (метка из «[…]»). Вариант называем буквой и 1–3 первыми словами: буква — чтобы
+ * быстро кликнуть, слова — чтобы найти вариант, если букв на сайте нет или варианты перемешались (в лекции — только
+ * слова). Незнакомый тип — «как вводят на сайте».
  */
 const ANSWER_FORMAT: Record<string, [string, string?]> = {
-  'один ответ': ['буква и вариант: «b) …»', 'текст варианта'],
+  'один ответ': ['буква и 1–3 первых слова варианта', '1–3 первых слова варианта'],
   'верно / неверно': ['«Верно» или «Неверно»'],
-  'несколько ответов': ['все верные: «a) …; c) …»', 'тексты всех верных вариантов через «; »'],
+  'несколько ответов': ['все верные: буква и 1–3 первых слова каждого, через «; »', 'все верные: 1–3 первых слова каждого, через «; »'],
   соответствие: ['ответы по порядку строк через « · »'],
   'выбор в пропусках': ['«[1] … · [2] …»'],
   пропуски: ['«[1] … · [2] …»'],
@@ -290,7 +294,10 @@ const ANSWER_FORMAT: Record<string, [string, string?]> = {
   эссе: ['готовый текст ответа, 3–6 предложений'],
   'задание на изображении': ['что куда: «элемент → место на рисунке»'],
 };
+/** В строке «Формат» вариант уже описан правилом выше — там короче. */
+const IN_RULE: Record<string, string | null> = { 'один ответ': null, 'несколько ответов': 'все верные через «; »' };
 const OTHER_FORMAT = 'как вводят на сайте';
+const CHOICE_TAGS = ['один ответ', 'несколько ответов'];
 
 export function answerFormat(tag: string, byText = false): string | null {
   if (tag === 'инфо') return null;
@@ -298,9 +305,8 @@ export function answerFormat(tag: string, byText = false): string | null {
   return f ? (byText && f[1]) || f[0] : OTHER_FORMAT;
 }
 
-/** Строка «Формат: [тип] — …» только для типов, которые есть в файле; незнакомые — одной группой. */
+/** Строка «Формат: [тип] — …» только для типов из файла, кроме обычного выбора; одинаковые — одной записью. */
 function formatsLine(tags: string[], byText: boolean): string | null {
-  // Одинаковая форма у разных типов — одной записью: «[пропуски], [выбор в пропусках] — …».
   const byFormat = new Map<string, string[]>();
   let other = false;
   for (const t of new Set(tags)) {
@@ -309,8 +315,8 @@ function formatsLine(tags: string[], byText: boolean): string | null {
       other = true;
       continue;
     }
-    const f = answerFormat(t, byText)!;
-    byFormat.set(f, [...(byFormat.get(f) ?? []), `[${t}]`]);
+    const f = t in IN_RULE ? IN_RULE[t] : answerFormat(t, byText);
+    if (f) byFormat.set(f, [...(byFormat.get(f) ?? []), `[${t}]`]);
   }
   const parts = [...byFormat].map(([f, ts]) => `${ts.join(', ')} — ${f}`);
   if (other) parts.push(`[${parts.length ? 'другие' : 'все'}] — ${OTHER_FORMAT}`);
@@ -318,14 +324,16 @@ function formatsLine(tags: string[], byText: boolean): string | null {
 }
 
 /**
- * Как отвечать: ответ «N. слова, по которым вопрос узнаётся, — ответ» можно отметить на сайте, не открывая файл,
- * при любом порядке вопросов. Общие начала («Выберите один ответ», общий текст-вступление) вопрос не опознают.
+ * Как отвечать. Ответ «N. слова, отличающие вопрос, — b) первые слова…» отмечают на сайте, не открывая файл,
+ * при любом порядке вопросов; полный текст варианта — лишние токены и лишнее чтение.
  */
 export function answerRule(source: string, tags: string[] = [], byText = false): string {
+  const choice = tags.some((t) => CHOICE_TAGS.includes(t));
   const rule =
-    'Как отвечать: строка на вопрос — «N. 3–6 слов, по которым вопрос узнаётся на сайте, — ответ» (не общее начало вроде «Выберите…»; варианты — дословно). ' +
-    'Без объяснений, кроме эссе. Не уверены или нет материала к «!» — лучший вариант с «(?)»: пустой ответ = 0 баллов. ' +
-    `Опирайтесь на ${source}, а не на общие знания: термины и цифры в курсе бывают другими.`;
+    'Как отвечать: строка на вопрос — «N. 2–5 слов, отличающих вопрос, — ответ». ' +
+    (choice ? (byText ? 'Вариант — 1–3 первых слова: «является элементом…». ' : 'Вариант — буква и 1–3 первых слова: «b) является элементом…». ') : '') +
+    `Без объяснений${tags.includes('эссе') ? ' (кроме эссе)' : ''}. Не уверены — всё равно ответ, с «(?)»: пустой = 0 баллов. ` +
+    `Опирайтесь на ${source}, а не на общие знания.`;
   const formats = formatsLine(tags, byText);
   return formats ? `${rule}\n${formats}` : rule;
 }

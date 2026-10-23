@@ -114,7 +114,7 @@ export function knownLine(q: Question, f: Fact): string | null {
   const parts: string[] = [];
   if (right.length) parts.push(`верно — ${right.map((t) => letter(t) + quote(t)).join('; ')}`);
   if (wrong.length) parts.push(`неверно — ${wrong.map((t) => letter(t) + quote(t)).join('; ')}`);
-  return `= Проверено в прошлой попытке: ${parts.join('; ')}.`;
+  return `= Проверено сайтом: ${parts.join('; ')}.`;
 }
 
 /** Справка в конце файла: подтверждённые ответы курса, которых нет среди вопросов файла. */

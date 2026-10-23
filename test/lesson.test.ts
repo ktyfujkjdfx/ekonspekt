@@ -130,7 +130,7 @@ describe('лекция: типы вопросов и материалы', () => 
     )!;
     expect(content.media[0].kind).toBe('youtube');
     const doc = formatLessonDocument(info(), [{ ...content, seq: 1 }]);
-    expect(doc).toContain('! Здесь видео https://www.youtube.com/embed/abc: в текст не попало, смотрите на странице лекции.');
+    expect(doc).toContain('! здесь видео https://www.youtube.com/embed/abc');
     const q = parseLessonPage(
       lessonDoc(
         form(
@@ -218,14 +218,14 @@ describe('конспект', () => {
     expect(txt).toBe(
       [
         'Учебный материал',
-        'Курс: Учебный курс',
-        'Тема: Неделя 1',
-        'Собрано: 2 страницы текста, 2 вопроса, оценка за вопросы 2 из 2',
-        'Выгружено: 22.10.2026 15:00',
-        `Ссылка: ${BASE}`,
-        'Рисунки (1) — в папке «картинки»: пометка [рисунок: …] указывает файл.',
-        'Ответы на вопросы сверяйте с текстом лекции: термины и определения в курсе могут отличаться от общепринятых.',
-        'Порядок вариантов на сайте меняется при каждом открытии, поэтому ориентируйтесь на текст варианта, а не на его место в списке.',
+        'Курс: Учебный курс · Тема: Неделя 1',
+        '2 страницы текста, 2 вопроса, оценка 2 из 2 · 22.10.2026 15:00',
+        BASE,
+        'Рисунки — в папке «картинки»: вопрос с [рисунок: …] решайте по рисунку.',
+        '',
+        'Как отвечать: строка на вопрос — «N. 2–5 слов, отличающих вопрос, — ответ». Вариант — 1–3 первых слова: «является элементом…». Без объяснений (кроме эссе). Не уверены — всё равно ответ, с «(?)»: пустой = 0 баллов. Опирайтесь на текст лекции, а не на общие знания.',
+        'Формат: [эссе] — готовый текст ответа, 3–6 предложений.',
+        'Обозначения: ○ один ответ, □ несколько; порядок вариантов на сайте другой.',
         '',
         '## Блокирующие функции',
         'MPI_Send блокирует процесс.',
@@ -254,9 +254,9 @@ describe('конспект', () => {
   it('без архива рисунок — подпись; незаконченная лекция и пропуски — предупреждение', () => {
     const txt = lf(formatLessonDocument(info({ finished: false, progress: 40, score: null, max: null, missing: ['Пример 2'] }), pages.slice(0, 1)));
     expect(txt).toContain('[рисунок: схема.png]');
-    expect(txt).toContain('Не собраны страницы: «Пример 2». Откройте их и выгрузите снова.');
-    expect(txt).toContain('Сами рисунки — в архиве ZIP или на странице лекции.');
-    expect(txt).not.toContain('Ответы на вопросы сверяйте');
+    expect(txt).toContain('Не собраны страницы: «Пример 2» — откройте их и выгрузите снова.');
+    expect(txt).toContain('сами рисунки — в ZIP или на сайте.');
+    expect(txt).not.toContain('Как отвечать');
   });
 
   it('копирование вопроса: подставляется пример, на который он ссылается', () => {
@@ -275,6 +275,7 @@ describe('конспект', () => {
         '○ a = 0',
         '○ a = 2',
         'Порядок вариантов на сайте меняется при каждом открытии, поэтому ориентируйтесь на текст варианта, а не на его место в списке.',
+        'Как ответить: 1–3 первых слова варианта, без объяснений.',
       ].join('\n'),
     );
   });
@@ -282,7 +283,11 @@ describe('конспект', () => {
   it('копирование эссе «обоснуйте предыдущий»: предыдущий вопрос с ответом', () => {
     const txt = formatLessonQuestionForClipboard(pages[3], 'Учебный материал', pages);
     expect(txt).toContain('Предыдущий вопрос:\nПроанализируйте код Примера 1. Что выведет программа?\n○ a = 0\n○ a = 2\nВаш ответ: «a = 2» ✓');
-    expect(txt.endsWith('Вопрос [эссе]\nДайте краткое обоснование ответа на предыдущий вопрос.\nОтвет: развёрнутый текст')).toBe(true);
+    expect(
+      txt.endsWith(
+        'Вопрос [эссе]\nДайте краткое обоснование ответа на предыдущий вопрос.\nОтвет: развёрнутый текст\nКак ответить: готовый текст ответа, 3–6 предложений.',
+      ),
+    ).toBe(true);
   });
 
   it('пример ещё не открыт — честная подсказка', () => {
@@ -365,13 +370,13 @@ describe('граничные случаи лекции', () => {
     expect(formatQuestion(q)).toContain('! Для ответа нужно: материал «Lesson 2»');
     const txt = formatQuestion(q, { materialTitles: ['Lesson 2. Family values'] });
     expect(txt).not.toContain('!');
-    expect(txt).toContain('= Материал «Lesson 2» — в конце файла, в разделе «Материал курса».');
+    expect(txt).toContain('(материал «Lesson 2» — в конце файла)');
   });
 });
 
 describe('«Собрать всю лекцию»: какие страницы проверять', async () => {
   const { planBatch, edgeMisses, EDGE } = await import('../src/content/lessonCrawl');
-  const { rememberFetchedPage, orderedPages } = await import('../src/content/lessonStore');
+  const { rememberFetchedPage, rememberPage, orderedPages, orderIsApproximate, titleNumber } = await import('../src/content/lessonStore');
   const { explicitPageIds } = await import('../src/parser/lesson');
 
   it('пачка: сначала явные ссылки, потом пропуски между известными, потом края вверх и вниз', () => {
@@ -437,6 +442,82 @@ describe('«Собрать всю лекцию»: какие страницы п
     expect(orderedPages(rec).map((p) => p.title)).toEqual(['Z', 'A', 'B', 'C', 'D']);
     expect(rec.pages[12].fetched).toBe(true);
   });
+
+  it('страница, вставленная преподавателем позже (большой id), встаёт на место, когда студент её открывает', () => {
+    const rec = { pages: {}, nextSeq: 1 } as never as StoredLesson;
+    rememberPage(rec, page({ pageid: '10', kind: 'content', title: 'Начало' }));
+    rememberFetchedPage(rec, page({ pageid: '11', kind: 'question', title: 'Эссе' }));
+    rememberFetchedPage(rec, page({ pageid: '20', kind: 'question', title: 'Колодец' }));
+    expect(orderedPages(rec).map((p) => p.title)).toEqual(['Начало', 'Эссе', 'Колодец']);
+    expect(orderIsApproximate(rec)).toBe(true);
+    // Студент листает «Пересмотр лекции»: сайт показывает колодец перед эссе.
+    rememberPage(rec, page({ pageid: '20', kind: 'question', title: 'Колодец' }));
+    rememberPage(rec, page({ pageid: '11', kind: 'question', title: 'Эссе' }));
+    expect(orderedPages(rec).map((p) => p.title)).toEqual(['Начало', 'Колодец', 'Эссе']);
+    expect(orderedPages(rec).map((p) => p.seq)).toEqual([1, 2, 3]);
+    expect(orderIsApproximate(rec)).toBe(false);
+  });
+
+  it('порядок найденных страниц уточняется по меню лекции и номерам в названиях вопросов', () => {
+    const rec = { pages: {}, nextSeq: 1, menu: [] } as never as StoredLesson;
+    rememberPage(rec, page({ pageid: '10', kind: 'content', title: 'Начало' }));
+    rememberFetchedPage(rec, page({ pageid: '11', kind: 'question', title: 'Вопрос 1' }));
+    rememberFetchedPage(rec, page({ pageid: '12', kind: 'question', title: 'Вопрос 3' }));
+    rememberFetchedPage(rec, page({ pageid: '30', kind: 'question', title: 'Вопрос 2' }));
+    expect(orderedPages(rec).map((p) => p.title)).toEqual(['Начало', 'Вопрос 1', 'Вопрос 2', 'Вопрос 3']);
+    rememberFetchedPage(rec, page({ pageid: '13', kind: 'content', title: 'Б' }));
+    rememberFetchedPage(rec, page({ pageid: '31', kind: 'content', title: 'А' }));
+    rec.menu = [
+      { pageid: '10', title: 'Начало' },
+      { pageid: '31', title: 'А' },
+      { pageid: '13', title: 'Б' },
+    ];
+    const titles = orderedPages(rec).map((p) => p.title);
+    expect(titles.indexOf('А')).toBeLessThan(titles.indexOf('Б'));
+    expect(titleNumber('Задание №4.')).toBe(4);
+    expect(titleNumber('Q12')).toBe(12);
+    expect(titleNumber('Классификация 2026')).toBeNull();
+  });
+
+  it('ответ из «Пересмотра лекции»: сохраняется у новой страницы и дописывается к уже собранной', () => {
+    const rec = { pages: {}, nextSeq: 1 } as never as StoredLesson;
+    rememberFetchedPage(rec, page({ pageid: '5', kind: 'question', answer: 'Поток', correct: true }));
+    expect(rec.pages[5].answer).toBe('Поток');
+    expect(rec.pages[5].correct).toBeNull();
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question' }));
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question', answer: 'Ответ Б' }));
+    expect(rec.pages[6].answer).toBe('Ответ Б');
+    rememberFetchedPage(rec, page({ pageid: '6', kind: 'question', answer: 'другое' }));
+    expect(rec.pages[6].answer).toBe('Ответ Б');
+  });
+});
+
+describe('конспект лекции: «Мои ответы» и порядок', () => {
+  const q = page({
+    pageid: '2',
+    kind: 'question',
+    qtype: 'single',
+    text: 'Что такое поток?',
+    options: ['Поток', 'Базис'],
+    answer: 'Поток',
+    correct: true,
+    seq: 1,
+  });
+
+  it('без «Моих ответов» — только вопросы, без ответа и оценки', () => {
+    const on = lf(formatLessonDocument(info(), [q]));
+    const off = lf(formatLessonDocument(info(), [q], { withAnswers: false }));
+    expect(on).toContain('Ваш ответ: «Поток» ✓');
+    expect(off).not.toContain('Ваш ответ');
+    expect(on).toContain('оценка 2 из 2');
+    expect(off).not.toContain('оценка 2 из 2');
+    expect(off).toContain('Как отвечать: строка на вопрос');
+  });
+
+  it('приблизительный порядок — честная строка в шапке', () => {
+    expect(lf(formatLessonDocument(info({ approxOrder: true }), [q]))).toContain('Порядок части страниц примерный');
+    expect(lf(formatLessonDocument(info(), [q]))).not.toContain('Порядок части страниц');
+  });
 });
 
 describe('«С картинкой»: подпись на снимке', async () => {
@@ -492,7 +573,7 @@ describe('лекция: ошибки из реальной выгрузки', ()
       ]),
     );
     expect(txt).not.toMatch(/Пройдено|только открытые/);
-    expect(txt).toContain('Собрано: 1 страница текста');
+    expect(txt).toContain('1 страница текста · ');
   });
 
   it('варианты: ○ — один ответ, □ — несколько', () => {

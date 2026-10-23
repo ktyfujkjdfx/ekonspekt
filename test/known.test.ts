@@ -62,7 +62,7 @@ describe('проверенные ответы из прошлых попыток
     );
     const facts = new Map([[f.key, f]]);
     const k = knownFor(next, facts, '9500000')!;
-    expect(knownLine(next, k)).toBe('= Проверено в прошлой попытке: неверно — b) «Возобновляемым источникам энергии».');
+    expect(knownLine(next, k)).toBe('= Проверено сайтом: неверно — b) «Возобновляемым источникам энергии».');
     // Своя же попытка себе не подсказка.
     expect(knownFor(next, facts, '9438238')).toBeNull();
   });
@@ -101,11 +101,11 @@ describe('проверенные ответы из прошлых попыток
     const txt = formatDocument(
       { meta: { quizTitle: 'Т', course: 'К', section: 'Тема 9', url: 'u', mode: 'attempt', totalQuestions: 1 }, exportedAt: new Date(2026, 9, 22) },
       [next],
-      { known: new Map([['n', '= Проверено в прошлой попытке: неверно — a) «X».']]), appendix: ['Справка: …', '- Q → A'] },
+      { known: new Map([['n', '= Проверено сайтом: неверно — a) «X».']]), appendix: ['Справка: …', '- Q → A'] },
     );
     expect(txt).toContain('Тема: Тема 9');
-    expect(txt).toContain('Строка «=» и справка в конце');
-    expect(txt).toContain('= Проверено в прошлой попытке');
+    expect(txt).toContain('Обозначения: = — ответ, уже подтверждённый сайтом.');
+    expect(txt).toContain('= Проверено сайтом');
     expect(txt.trimEnd().endsWith('- Q → A')).toBe(true);
   });
 });

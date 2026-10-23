@@ -8,7 +8,7 @@ import { codeText, isMonoBlock } from '../parser/text';
 import { formatLessonDocument, formatLessonPageForClipboard, formatLessonQuestionForClipboard, imageKey, lessonTypeShort } from '../format/lesson';
 import { factFromLessonPage, normalize, type Fact } from '../format/known';
 import { safeFileName } from '../format/txt';
-import { orderedPages, rememberPage, updateLesson, loadLesson, type StoredLesson } from './lessonStore';
+import { orderedPages, orderIsApproximate, rememberPage, updateLesson, loadLesson, type StoredLesson } from './lessonStore';
 import { rememberFacts } from './known';
 import { copyChip, noteFor, ProgressOverlay, withoutImageNeed } from './ui';
 import { contentImages } from './copyImage';
@@ -50,7 +50,7 @@ export async function lessonMain(): Promise<void> {
     busy = true;
     overlay.begin();
     try {
-      const message = msg.type === 'collectLesson' ? await collectLesson(meta, progress) : await exportLesson(meta, msg.zip, progress);
+      const message = msg.type === 'collectLesson' ? await collectLesson(meta, progress) : await exportLesson(meta, msg.zip, msg.includeResults, progress);
       overlay.show(message, 1, 1);
       overlay.hide(4000);
       send({ type: 'progress', text: message, finished: true });
@@ -241,6 +241,9 @@ async function lessonStatus(meta: LessonMeta, busy: boolean): Promise<LessonStat
     menuTotal: rec?.menu.length || null,
     progress: rec?.progress ?? meta.progress,
     finished: !!rec?.finished,
+    answers: pages.filter((p) => p.kind === 'question' && p.answer).length,
+    approxOrder: rec ? orderIsApproximate(rec) : false,
+    collected: !!rec?.collectedAt && !!rec.finished,
     busy,
   };
 }
@@ -272,7 +275,7 @@ async function fetchImage(src: string): Promise<{ data: Uint8Array; ext: string 
   }
 }
 
-async function exportLesson(meta: LessonMeta, zip: boolean, progress: (t: string, d?: number, n?: number) => void): Promise<string> {
+async function exportLesson(meta: LessonMeta, zip: boolean, withAnswers: boolean, progress: (t: string, d?: number, n?: number) => void): Promise<string> {
   progress('Собираю конспект…', 0, 100);
   const rec = meta.cmid ? await loadLesson(meta.cmid) : null;
   const pages = rec ? orderedPages(rec) : [];
@@ -320,10 +323,11 @@ async function exportLesson(meta: LessonMeta, zip: boolean, progress: (t: string
       score: rec.score,
       max: rec.max,
       missing: rec.menu.filter((m) => !have.has(m.pageid)).map((m) => m.title),
+      approxOrder: orderIsApproximate(rec),
       exportedAt: now,
     },
     pages,
-    { imagePaths },
+    { imagePaths, withAnswers },
   );
 
   // Имя файла — как у тестов: «<название>_<дата>».

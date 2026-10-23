@@ -46,6 +46,12 @@ export interface LessonStatus {
   menuTotal: number | null;
   progress: number | null;
   finished: boolean;
+  /** Вопросов с вашим ответом. */
+  answers: number;
+  /** Порядок части страниц — догадка по id (студент открывал не все сам). */
+  approxOrder: boolean;
+  /** «Собрать всю лекцию» уже запускали после завершения лекции. */
+  collected: boolean;
   busy: boolean;
 }
 

@@ -274,15 +274,67 @@ export function plural(n: number, one: string, few: string, many: string): strin
 }
 
 /**
- * Как отвечать — одна строка для нейросети и человека. Ответ «N. первые слова вопроса — ответ» можно отметить
- * на сайте, не открывая файл, даже если порядок вопросов разный; без объяснений ответ короткий.
+ * Форма ответа по типу вопроса (метка из «[…]»): короткая и такая, какую вводят на сайте. В лекции буквы
+ * вариантов не постоянны, поэтому там — текст варианта. Незнакомый тип — «как вводят на сайте».
  */
-export function answerRule(source: string, byText = false): string {
-  return (
-    `Как отвечать: строка на вопрос — «N. первые слова вопроса — ${byText ? 'текст' : 'буква или текст'} ответа»; ` +
-    'соответствие и пропуски — ответы через « · » по порядку строк. Без объяснений. Не уверены — «(?)», но не пропускайте: пустой ответ = 0 баллов. ' +
-    `Опирайтесь на ${source}, а не на общие знания: термины и цифры в курсе бывают другими.`
-  );
+const ANSWER_FORMAT: Record<string, [string, string?]> = {
+  'один ответ': ['буква и вариант: «b) …»', 'текст варианта'],
+  'верно / неверно': ['«Верно» или «Неверно»'],
+  'несколько ответов': ['все верные: «a) …; c) …»', 'тексты всех верных вариантов через «; »'],
+  соответствие: ['ответы по порядку строк через « · »'],
+  'выбор в пропусках': ['«[1] … · [2] …»'],
+  пропуски: ['«[1] … · [2] …»'],
+  'свой ответ': ['только то, что вводят в поле'],
+  число: ['только число, с единицами, если они есть'],
+  порядок: ['элементы в нужном порядке через « → »'],
+  эссе: ['готовый текст ответа, 3–6 предложений'],
+  'задание на изображении': ['что куда: «элемент → место на рисунке»'],
+};
+const OTHER_FORMAT = 'как вводят на сайте';
+
+export function answerFormat(tag: string, byText = false): string | null {
+  if (tag === 'инфо') return null;
+  const f = ANSWER_FORMAT[tag];
+  return f ? (byText && f[1]) || f[0] : OTHER_FORMAT;
+}
+
+/** Строка «Формат: [тип] — …» только для типов, которые есть в файле; незнакомые — одной группой. */
+function formatsLine(tags: string[], byText: boolean): string | null {
+  // Одинаковая форма у разных типов — одной записью: «[пропуски], [выбор в пропусках] — …».
+  const byFormat = new Map<string, string[]>();
+  let other = false;
+  for (const t of new Set(tags)) {
+    if (t === 'инфо') continue;
+    if (!ANSWER_FORMAT[t]) {
+      other = true;
+      continue;
+    }
+    const f = answerFormat(t, byText)!;
+    byFormat.set(f, [...(byFormat.get(f) ?? []), `[${t}]`]);
+  }
+  const parts = [...byFormat].map(([f, ts]) => `${ts.join(', ')} — ${f}`);
+  if (other) parts.push(`[${parts.length ? 'другие' : 'все'}] — ${OTHER_FORMAT}`);
+  return parts.length ? `Формат: ${parts.join('; ')}.` : null;
+}
+
+/**
+ * Как отвечать: ответ «N. слова, по которым вопрос узнаётся, — ответ» можно отметить на сайте, не открывая файл,
+ * при любом порядке вопросов. Общие начала («Выберите один ответ», общий текст-вступление) вопрос не опознают.
+ */
+export function answerRule(source: string, tags: string[] = [], byText = false): string {
+  const rule =
+    'Как отвечать: строка на вопрос — «N. 3–6 слов, по которым вопрос узнаётся на сайте, — ответ» (не общее начало вроде «Выберите…»; варианты — дословно). ' +
+    'Без объяснений, кроме эссе. Не уверены или нет материала к «!» — лучший вариант с «(?)»: пустой ответ = 0 баллов. ' +
+    `Опирайтесь на ${source}, а не на общие знания: термины и цифры в курсе бывают другими.`;
+  const formats = formatsLine(tags, byText);
+  return formats ? `${rule}\n${formats}` : rule;
+}
+
+/** Одна строка к вопросу в буфере обмена: шапки файла там нет. */
+export function clipboardFormat(tag: string, byText = false): string | null {
+  const f = answerFormat(tag, byText);
+  if (!f) return null;
+  return `Как ответить: ${f}${tag === 'эссе' ? '' : ', без объяснений'}.`;
 }
 
 export function formatDocument(info: DocumentInfo, questions: Question[], opts: FormatOptions = {}): string {
@@ -316,11 +368,16 @@ export function formatDocument(info: DocumentInfo, questions: Question[], opts: 
   }
 
   L.push('');
-  L.push(answerRule(opts.material?.length ? `${opts.material.length > 1 ? 'лекции' : 'лекцию'} в конце файла` : 'материалы курса'));
+  L.push(
+    answerRule(
+      opts.material?.length ? `${opts.material.length > 1 ? 'лекции' : 'лекцию'} в конце файла` : 'материалы курса',
+      real.map((q) => typeTag(q)),
+    ),
+  );
   // Обозначения — только те, что есть в файле.
   const legend: string[] = [];
   if (opts.withResults) legend.push(`(ваш) — ваш выбор, ✓ верно, ✗ неверно${info.rightAnswersShown ? '' : ' (правильные ответы преподаватель скрыл)'}`);
-  if (material.length) legend.push('! — нужен материал вне файла: сверить, не угадывать');
+  if (material.length) legend.push('! — нужен материал вне файла (рисунок, видео, текст): сверить с ним');
   if ([...hints.keys()].some((g) => !(opts.withResults && g.correct === true)))
     legend.push('[в вопросе N: «…»] — тот же текст в другом вопросе, пропуск там виден');
   if (extras) legend.push('(лишних: N) — варианты, которые никуда не подходят');
@@ -335,7 +392,10 @@ export function formatDocument(info: DocumentInfo, questions: Question[], opts: 
 
 /** Текст одного вопроса для буфера обмена — тот же блок, что и в TXT. */
 export function formatForClipboard(q: Question, opts: FormatOptions = {}): string {
-  return formatQuestion(q, opts);
+  const text = formatQuestion(q, opts);
+  // После теста вопрос копируют разобрать ошибку — там форма ответа не нужна.
+  const f = opts.withResults && q.result ? null : clipboardFormat(typeTag(q));
+  return f ? `${text}\n${f}` : text;
 }
 
 /** Зарезервированные имена устройств Windows: файл с таким именем не создать. */

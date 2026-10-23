@@ -1,6 +1,6 @@
 import type { LessonPage, LessonQType } from '../parser/lesson';
 import type { Media } from '../parser/text';
-import { answerRule, formatDateTime, needSentence, plural } from './txt';
+import { answerRule, clipboardFormat, formatDateTime, needSentence, plural } from './txt';
 
 /**
  * Конспект лекции: читать самому и отдавать нейросети.
@@ -172,7 +172,13 @@ export function formatLessonDocument(info: LessonDocInfo, pages: LessonPage[], o
 
   if (questions.length) {
     L.push('');
-    L.push(answerRule('текст лекции', true));
+    L.push(
+      answerRule(
+        'текст лекции',
+        questions.map((q) => QTYPE_RU[q.qtype ?? 'other']),
+        true,
+      ),
+    );
   }
   const legend: string[] = [];
   if (questions.some((q) => q.options?.length)) legend.push('○ один ответ, □ несколько; порядок вариантов на сайте другой');
@@ -227,6 +233,8 @@ export function formatLessonQuestionForClipboard(p: LessonPage, lessonTitle: str
   }
   L.push('', `Вопрос [${QTYPE_RU[p.qtype ?? 'other']}]`, ...questionBody(p, {}, false));
   if ((p.options?.length ?? 0) > 1) L.push(SHUFFLE_NOTE);
+  const f = clipboardFormat(QTYPE_RU[p.qtype ?? 'other'], true);
+  if (f) L.push(f);
   return L.join('\n');
 }
 

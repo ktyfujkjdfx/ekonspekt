@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { loadFixture } from './helpers';
 import { hasRightAnswers, parseAttemptSummary, parsePageMeta, parseQuestions } from '../src/parser/page';
-import { answerRule, formatDocument, formatQuestion, imageFileName, safeFileName } from '../src/format/txt';
+import { answerFormat, answerRule, formatDocument, formatForClipboard, formatQuestion, imageFileName, safeFileName } from '../src/format/txt';
 
 const ATTEMPT_URL = 'https://e.sfu-kras.ru/mod/quiz/attempt.php?attempt=9437135&cmid=1444264&page=9';
 const DATE = new Date(2026, 9, 21, 23, 5);
@@ -76,22 +76,41 @@ describe('formatQuestion', () => {
   });
 });
 
+describe('форма ответа по типу вопроса', () => {
+  it('каждый тип — своя короткая форма; лекция — текстом варианта; незнакомый тип и инфо', () => {
+    expect(answerFormat('эссе')).toBe('готовый текст ответа, 3–6 предложений');
+    expect(answerFormat('порядок')).toBe('элементы в нужном порядке через « → »');
+    expect(answerFormat('задание на изображении')).toBe('что куда: «элемент → место на рисунке»');
+    expect(answerFormat('число')).toBe('только число, с единицами, если они есть');
+    expect(answerFormat('один ответ', true)).toBe('текст варианта');
+    expect(answerFormat('выбор слов в тексте')).toBe('как вводят на сайте');
+    expect(answerFormat('инфо')).toBeNull();
+    expect(answerRule('материалы курса', ['эссе', 'эссе'])).toContain('Формат: [эссе] — готовый текст ответа, 3–6 предложений.');
+    expect(answerRule('материалы курса', ['инфо'])).not.toContain('Формат:');
+  });
+});
+
 describe('formatDocument', () => {
   it('шапка: коротко, только непустые счётчики, без рамок', () => {
     const doc = loadFixture('synthetic-attempt-types.html');
     const url = 'https://e.sfu-kras.ru/mod/quiz/attempt.php?attempt=1&cmid=555';
     const txt = lf(formatDocument({ meta: parsePageMeta(doc, url), exportedAt: DATE }, parseQuestions(doc)));
-    expect(txt.split('\n').slice(0, 9)).toEqual([
+    expect(txt.split('\n').slice(0, 10)).toEqual([
       'Синтетический тест',
       'Курс: Информатика',
       '6 вопросов · попытка · 21.10.2026 23:05',
       url,
       'С изображением: №1, №4 (смотрите на сайте)',
       '',
-      answerRule('материалы курса'),
-      'Обозначения: ! — нужен материал вне файла: сверить, не угадывать; (лишних: N) — варианты, которые никуда не подходят.',
+      answerRule('материалы курса').split('\n')[0],
+      // Только типы из этого файла; незнакомые — одной группой.
+      'Формат: [несколько ответов] — все верные: «a) …; c) …»; [соответствие] — ответы по порядку строк через « · »; [выбор в пропусках] — «[1] … · [2] …»; [свой ответ] — только то, что вводят в поле; [один ответ] — буква и вариант: «b) …»; [другие] — как вводят на сайте.',
+      'Обозначения: ! — нужен материал вне файла (рисунок, видео, текст): сверить с ним; (лишних: N) — варианты, которые никуда не подходят.',
       '',
     ]);
+    const clip = parseQuestions(doc).map((q) => formatForClipboard(q).split('\n').pop());
+    expect(clip).toContain('Как ответить: все верные: «a) …; c) …», без объяснений.');
+    expect(clip).toContain('Как ответить: как вводят на сайте, без объяснений.');
     expect(txt).not.toMatch(/[═─\t]/);
   });
 

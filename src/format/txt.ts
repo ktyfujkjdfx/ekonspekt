@@ -1,5 +1,6 @@
 import type { Gap, Need, PageMeta, Question, SummaryRow } from '../parser/types';
 import { mediaPlaceholder } from '../parser/text';
+import { crossReferences } from './crossref';
 
 /**
  * Формат выгрузки: читать человеку и отдавать нейросети.
@@ -23,6 +24,8 @@ export interface FormatOptions {
   material?: string[];
   /** Названия приложенных лекций: отсылка «из Lesson 2» к ним уже не «нет в файле». */
   materialTitles?: string[];
+  /** Пропуск → «в вопросе N: «…»»: тот же текст в другом вопросе теста (заполняет formatDocument). */
+  hints?: Map<Gap, string>;
 }
 
 export interface DocumentInfo {
@@ -129,7 +132,11 @@ function sameOptions(gaps: Gap[]): string[] | null {
   return first && gaps.every((g) => g.options.join('\u0000') === first) ? gaps[0].options : null;
 }
 
-function formatGaps(q: Question, results: boolean): string[] {
+function formatGaps(q: Question, results: boolean, hints?: Map<Gap, string>): string[] {
+  const hint = (g: Gap) => {
+    const h = hints?.get(g);
+    return h && !(results && g.correct === true) ? ` [${h}]` : '';
+  };
   const L: string[] = [];
   const essay = q.gaps.find((g) => g.kind === 'essay');
   const rest = q.gaps.filter((g) => g.kind !== 'essay');
@@ -140,11 +147,18 @@ function formatGaps(q: Question, results: boolean): string[] {
   const matchRows = rows.filter((g) => g.label !== 'Ответ' && g.label !== 'Единицы' && g.label !== 'Порядок' && g.label !== 'Элементы для перетаскивания');
   if (matchRows.length) {
     const common = sameOptions(matchRows);
-    if (common) L.push(`Варианты: ${common.join(' / ')}`);
+    if (common) L.push(`Варианты: ${common.join(' / ')}${common.length > matchRows.length ? ` (лишних: ${common.length - matchRows.length})` : ''}`);
+    // Правильный ответ скрыт, но вариантов не так много: исключаем выбранный неверный и занятые верными пунктами.
+    const leftover = (g: Gap) => {
+      if (!results || !common || g.correct !== false || g.rightAnswer) return '';
+      const taken = new Set(matchRows.filter((r) => r.correct === true && r.answer).map((r) => r.answer));
+      const left = common.filter((o) => o !== g.answer && !taken.has(o));
+      return left.length ? ` (значит, верный — ${left.length === 1 ? left[0] : 'один из: ' + left.join(' / ')})` : '';
+    };
     for (const g of matchRows) {
       const opts = common ? '' : ` (${g.options.join(' / ')})`;
       const ans = results ? `${g.answer ?? '—'}${mark(g.correct)}` : '?';
-      L.push(`- ${g.label.replace(/\n+/g, ' ')} → ${ans}${opts}${results && g.rightAnswer ? ` (правильно: ${g.rightAnswer})` : ''}`);
+      L.push(`- ${g.label.replace(/\n+/g, ' ')} → ${ans}${opts}${results && g.rightAnswer ? ` (правильно: ${g.rightAnswer})` : ''}${leftover(g)}${hint(g)}`);
     }
   }
 
@@ -155,9 +169,9 @@ function formatGaps(q: Question, results: boolean): string[] {
     const opts = choice ? g.options.join(' / ') : '';
     if (results) {
       const right = g.rightAnswer && g.correct !== true ? ` → правильно: ${g.rightAnswer}` : '';
-      L.push(`${g.label} ${g.answer ?? '—'}${mark(g.correct)}${right}${choice ? `  (${opts})` : ''}`);
+      L.push(`${g.label} ${g.answer ?? '—'}${mark(g.correct)}${right}${choice ? `  (${opts})` : ''}${hint(g)}`);
     } else {
-      L.push(`${g.label} ${g.kind === 'checkbox' ? 'несколько из: ' : ''}${opts}`);
+      L.push(`${g.label} ${g.kind === 'checkbox' ? 'несколько из: ' : ''}${opts}${hint(g)}`);
     }
   }
 
@@ -218,7 +232,7 @@ export function formatQuestion(q: Question, opts: FormatOptions = {}): string {
     }
     L.push(`${c.label}) ${body}${tail}`);
   }
-  L.push(...formatGaps(q, results));
+  L.push(...formatGaps(q, results, opts.hints));
   if (q.kind === 'other' && q.otherText) L.push(`Ответ: ${q.otherText}`);
 
   if (results && q.result) {
@@ -290,14 +304,24 @@ export function formatDocument(info: DocumentInfo, questions: Question[], opts: 
     L.push('Знак «!» отмечает вопросы, для ответа на которые нужен материал вне этого файла: такие ответы не угадывают, а сверяют с материалом.');
   if (opts.known?.size || opts.appendix?.length)
     L.push('Строка «=» и справка в конце — ответы, которые сайт уже подтвердил в прошлых попытках: на них можно опираться.');
-  // Одна фраза и для студента, и для нейросети: главная причина неверных ответов — общие знания вместо курса.
+  const hints = opts.hints ?? crossReferences(questions);
+  const extras = real.some((q) => {
+    const rows = q.kind === 'match' ? q.gaps.filter((g) => !/^\[\d+\]$/.test(g.label)) : [];
+    const common = sameOptions(rows);
+    return !!common && common.length > rows.length;
+  });
+  if ([...hints.keys()].some((g) => !(opts.withResults && g.correct === true)))
+    L.push('Пометка [в вопросе N: «…»] — тот же текст в другом вопросе этого теста, где пропущенное слово видно: сверьте с ней.');
+  if (extras) L.push('В соответствии каждый вариант обычно подходит одному пункту; «лишних: N» — варианты, которые не подходят никуда.');
+  // Главная причина неверных ответов — общие знания вместо курса; вторая — отказ отвечать на вопрос с опечаткой или склейкой.
   L.push(
-    opts.material?.length
-      ? `Ответы сверяйте с ${opts.material.length > 1 ? 'лекциями' : 'лекцией'} курса в конце файла: термины, классификации и цифры в курсе бывают другими, чем в общих источниках. Неподтверждённый ответ помечайте как предположение.`
-      : 'Ответы сверяйте с материалами курса: термины, классификации и цифры в нём бывают другими, чем в общих источниках. Неподтверждённый ответ помечайте как предположение.',
+    (opts.material?.length
+      ? `Ответы сверяйте с ${opts.material.length > 1 ? 'лекциями' : 'лекцией'} курса в конце файла: термины, классификации и цифры в курсе бывают другими, чем в общих источниках.`
+      : 'Ответы сверяйте с материалами курса: термины, классификации и цифры в нём бывают другими, чем в общих источниках.') +
+      ' Если вопрос оборван или склеен с чужим текстом (так бывает в самих тестах), всё равно выберите самый подходящий вариант и пометьте его как предположение: пустой ответ — 0 баллов.',
   );
 
-  const body = questions.map((q) => formatQuestion(q, opts)).join('\n\n');
+  const body = questions.map((q) => formatQuestion(q, { ...opts, hints })).join('\n\n');
   let tail = opts.appendix?.length ? '\n\n' + opts.appendix.join('\n') : '';
   if (opts.material?.length) tail += '\n\n# Материал курса\n\n' + opts.material.join('\n\n');
   return (L.join('\n') + '\n\n' + body + tail + '\n').replace(/\n/g, EOL);

@@ -1,11 +1,14 @@
 import { ext, fromOurExtension, TARGET } from '../shared/api';
 import { cleanFileBase } from '../format/txt';
-import { DEFAULT_SETTINGS } from '../shared/settings';
+import { DEFAULT_SETTINGS, type Settings } from '../shared/settings';
 import type { DownloadMessage, ThemeMessage } from '../shared/messages';
 
 ext.runtime.onInstalled.addListener(async () => {
   const r = await ext.storage.local.get('settings');
-  await ext.storage.local.set({ settings: { ...DEFAULT_SETTINGS, ...(r?.settings ?? {}) } });
+  const saved = { ...((r?.settings ?? {}) as Partial<Settings>) };
+  // В 1.0.0 «Мои ответы» были выключены по умолчанию и сохранялись при установке — включаем один раз.
+  if ((saved.defaultsVersion ?? 1) < 2) saved.includeResults = true;
+  await ext.storage.local.set({ settings: { ...DEFAULT_SETTINGS, ...saved, defaultsVersion: DEFAULT_SETTINGS.defaultsVersion } });
 });
 
 /**
